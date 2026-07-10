@@ -1,49 +1,137 @@
 <!doctype html public "-//w3c//dtd html 4.0 transitional//en">
 <html>
 <head>
-   <link rel="stylesheet" type="text/css" href="style.css">
-   <meta http-equiv="Content-Type" charset="utf-8">
-   <meta name="GENERATOR" content="Mozilla/4.76 [en] (Windows NT 5.0; U) [Netscape]">
-   <meta name="Author" content="IME">
-   <title>Simón Piga</title>
-   <link rel="stylesheet" type="text/css" href="base.css"/>
-   
-<script>
-function topFunction() {
-  document.body.scrollTop = 0; // For Safari
-  document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
-}
-</script>
-<style>
-a[target="_blank"]::after {
-  content: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAQElEQVR42qXKwQkAIAxDUUdxtO6/RBQkQZvSi8I/pL4BoGw/XPkh4XigPmsUgh0626AjRsgxHTkUThsG2T/sIlzdTsp52kSS1wAAAABJRU5ErkJggg==);
-  margin: 0 3px 0 5px;
-  color: Violet;
-}
-</style>
-
+    <meta charset="utf-8">
+    <title>Simón Piga</title>
+    <style>
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            line-height: 1.6;
+            color: #222;
+            background-color: #fcfcfc;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #ddd;
+            margin: 30px 0;
+        }
+        a {
+            color: #0055aa;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        /* Navigation */
+        .nav {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .nav a {
+            margin: 0 15px;
+            font-weight: 500;
+            color: #333;
+        }
+        .nav a:hover {
+            color: #0055aa;
+            text-decoration: none;
+        }
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin-bottom: 5px;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+        .header .title {
+            font-size: 1.1em;
+            color: #555;
+        }
+        .header .affiliation {
+            font-size: 0.95em;
+            color: #777;
+        }
+        .header .email {
+            font-size: 0.95em;
+            color: #0055aa;
+        }
+        /* Sections */
+        .section {
+            margin-bottom: 35px;
+        }
+        .section h2 {
+            font-weight: 400;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .pub-item {
+            margin-bottom: 12px;
+        }
+        .pub-title {
+            font-weight: 500;
+        }
+        .pub-authors {
+            font-style: italic;
+            color: #444;
+        }
+        .pub-status {
+            color: #666;
+        }
+        .pub-links a {
+            margin-right: 10px;
+        }
+        .highlight-item {
+            background: #f5f5f5;
+            padding: 12px 18px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .highlight-item .title {
+            font-weight: 500;
+        }
+        .footer {
+            text-align: center;
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+    </style>
 </head>
-<body >
+	
+<body>
+	
+ <div class="nav">
+        <a href="#about">About</a>
+        <a href="#publications">Publications</a>
+        <a href="#highlights">Research Highlights</a>
+    </div>
 
-
-
-<div align="center">
-<div align="left" id="main">
-<h1>Simón Piga</h1>	
-&nbsp &nbsp &nbsp &nbsp<a href="https://sipiga.github.io/"><img src="formalphoto.jpg"  height="150" align="left" /></a>
-<div>
-
-<br><br><br><br><br><br><br><br>
-&nbsp &nbsp &nbsp &nbsp Postdoc Combinatorics <br>
-&nbsp &nbsp &nbsp &nbsp Institute of Computer Science<br>
-&nbsp &nbsp &nbsp &nbsp Czech Academy of Sciences <br>
-&nbsp &nbsp &nbsp &nbsp piga@cs.cas.cz <br>
-&nbsp &nbsp &nbsp &nbsp <a href="https://arxiv.org/a/piga_s_1.html">My ArXiv</a><br>
-</div><br>
+    <!-- Header -->
+    <div class="header">
+        <h1>Simón Piga</h1>
+        <div class="title">Postdoc in Combinatorics</div>
+        <div class="affiliation">IBS &amp; ECOPRO, Daejeon, South Korea</div>
+        <div class="email">sipiga@ibs.re.kr</div>
+        <div style="margin-top:8px;">
+            <a href="https://arxiv.org/a/piga_s_1.html" target="_blank">My ArXiv</a>
+        </div>
+    </div>
 
 <h2>About me</h2>
-I am a postdoctoral researcher now working at Institute of Computer Science The Czech Academy of Sciences.
-	Before that I was working with <a href="https://web.mat.bham.ac.uk/A.Treglown//">Andrew Treglown</a> at University of Birmingham. 
+I am a postdoctoral researcher now working at the <strong>Institute for Basic Science (IBS)</strong> in Daejeon, South Korea, as part of the <a href="https://www.ibs.re.kr/ecopro">ECOPRO</a>.
+	Before that I worked with <a href="https://www.cs.cas.cz/~hladky/">Jan Hladky</a> at the Institute of Computer Science in Czechia and with <a href="https://web.mat.bham.ac.uk/A.Treglown//">Andrew Treglown</a> at University of Birmingham in the UK. 
 	I did my Ph.D. in Hamburg under the supervision of <a href="https://www.math.uni-hamburg.de/home/schacht/index.html.en">Mathias Schacht</a>. 
 	Previously, back in Chile, I wrote my master's thesis at Universidad de Chile under the supervision of <a href="http://www.dim.uchile.cl/~mstein/">Maya Stein</a>.
 <br><br>
