@@ -44,10 +44,33 @@
         }
         /* Header */
         .header {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+            text-align: left;
             margin-bottom: 30px;
         }
+        /* Photo: placeholder box for now; later replace the div with
+           <img class="photo" src="photo.jpg" alt="Simón Piga"> */
+        .header .photo {
+            width: 150px;
+            height: 190px;
+            flex-shrink: 0;
+            background: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            object-fit: cover;
+        }
+        @media (max-width: 560px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 12px;
+            }
+        }
         .header h1 {
+            margin-top: 0;
             margin-bottom: 5px;
             font-size: 2.2em;
             font-weight: 300;
@@ -120,12 +143,17 @@
 
     <!-- Header -->
     <div class="header">
-        <h1>Simón Piga</h1>
-		<div class="title">Researcher in Combinatorics</div>
-        <div class="affiliation">IBS - ECOPRO, Daejeon, South Korea</div>
-        <div class="email">sipiga@ibs.re.kr</div>
-        <div style="margin-top:8px;">
-            <a href="https://arxiv.org/a/piga_s_1.html" target="_blank">My ArXiv</a>
+        <!-- Photo placeholder: replace this line with
+             <img class="photo" src="photo.jpg" alt="Simón Piga"> -->
+        <div class="photo"></div>
+        <div class="header-text">
+            <h1>Simón Piga</h1>
+            <div class="title">Researcher in Combinatorics</div>
+            <div class="affiliation">IBS - ECOPRO, Daejeon, South Korea</div>
+            <div class="email">sipiga@ibs.re.kr</div>
+            <div style="margin-top:8px;">
+                <a href="https://arxiv.org/a/piga_s_1.html" target="_blank">My ArXiv</a>
+            </div>
         </div>
     </div>
 
@@ -252,14 +280,14 @@ I'm interested in extremal and probabilistic combinatorics, <a href="https://vpf
 
 <b>r-cross t-intersecting families via necessary intersection points</b><br>
   with P. Gupta, Y. Mogge, and B. Schülke.<br>
-  <i>Bulletin of the London Mathematical Society</i>, 55.1 (2023): 1447-1458.<br>
+  <i>Bulletin of the London Mathematical Society</i>, 55.3 (2023): 1447-1458.<br>
   <a href="https://sipiga.github.io/intersecting_fam.pdf" target="_blank">Download</a>
   <a href="https://sipiga.github.io/intfam.pdf" target="_blank">Short version</a>
 <br><br>
 	
 <b>On extremal problems concerning the traces of sets</b><br>
 with B. Schülke. <br>
-<i>Journal of Combinatorial Theory, Series A</i>, 181 (2021): 105447.<br>
+<i>Journal of Combinatorial Theory, Series A</i>, 182 (2021): 105447.<br>
 <a href="https://sipiga.github.io/Traces_of_sets.pdf" target="_blank">Download</a>
 <a href="https://sipiga.github.io/Traces_of_sets-1.pdf" target="_blank">Short version</a>
 <br><br>
@@ -294,4 +322,3 @@ University of Birmingham 2023
 	
 </body>
 </html>
-
