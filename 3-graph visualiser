@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3‑graph visualiser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --ink: #1b2430;
+  --muted: #5c6773;
+  --line: #d5dbe2;
+  --line-strong: #aeb8c2;
+  --accent: #2f5d8a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4edf6;
+  --vertex-fill: #ffffff;
+  --vertex-stroke: #1b2430;
+  --ghost: #7a8793;
+  --focus: #2f5d8a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121820;
+    --panel: #1a2230;
+    --ink: #e6ecf2;
+    --muted: #93a0ad;
+    --line: #2c3744;
+    --line-strong: #44515f;
+    --accent: #7fb3e6;
+    --accent-ink: #0f1620;
+    --accent-soft: #223247;
+    --vertex-fill: #1a2230;
+    --vertex-stroke: #e6ecf2;
+    --ghost: #7a8793;
+    --focus: #7fb3e6;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121820;
+  --panel: #1a2230;
+  --ink: #e6ecf2;
+  --muted: #93a0ad;
+  --line: #2c3744;
+  --line-strong: #44515f;
+  --accent: #7fb3e6;
+  --accent-ink: #0f1620;
+  --accent-soft: #223247;
+  --vertex-fill: #1a2230;
+  --vertex-stroke: #e6ecf2;
+  --ghost: #7a8793;
+  --focus: #7fb3e6;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Albert Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+header.top { max-width: 1180px; margin: 0 auto; padding: 22px 20px 12px; }
+.headrow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 6px; }
+h1 { font-size: 21px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.modes { display: flex; gap: 6px; }
+.modes button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+header.top p { margin: 0; color: var(--muted); max-width: 84ch; }
+body[data-mode="single"] .only-product, body[data-mode="product"] .only-single { display: none !important; }
+main {
+  max-width: 1180px; margin: 0 auto; padding: 0 20px 40px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start;
+}
+@media (max-width: 900px) {
+  main { display: flex; flex-direction: column; }
+  main > .col { display: contents; }
+  .canvas-card { order: 1; }
+  .factors { order: 2; }
+  aside.col > .card { order: 3; }
+  .gallery { order: 4; }
+}
+.col { display: grid; gap: 18px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+
+/* canvas */
+.canvas-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.canvas-head .title { font-size: 17px; font-weight: 600; min-width: 0; }
+.canvas-head .nav { display: flex; gap: 6px; flex: none; }
+svg#canvas {
+  width: 100%; height: auto; display: block;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  font-family: "Albert Sans", system-ui, sans-serif;
+}
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); }
+.edge .blob {
+  fill: var(--c); stroke: var(--c);
+  fill-opacity: var(--fo); stroke-opacity: var(--so); stroke-width: var(--halo);
+  stroke-linejoin: round; stroke-linecap: round;
+  transition: fill-opacity .12s, stroke-opacity .12s;
+}
+.edge .casing { display: none; fill: none; stroke: var(--panel); stroke-width: var(--bar-case); stroke-linejoin: round; stroke-linecap: round; }
+.edge.bar .casing { display: block; }
+.edge.bar .blob { fill: none; stroke-width: var(--bar-w); stroke-opacity: 1; }
+.edge.bar.dim .blob { stroke-opacity: 0.15; }
+.edge.dim .casing, .edge[data-style="hub"] .casing { display: none; }
+.edge .spoke { stroke: var(--c); stroke-width: 3.5; stroke-linecap: round; opacity: .85; }
+.edge .hub { fill: var(--c); stroke: var(--panel); stroke-width: 2; }
+.edge .spoke, .edge .hub { display: none; }
+.edge[data-style="hub"] .spoke, .edge[data-style="hub"] .hub { display: block; }
+.edge[data-style="hub"] .blob { display: none; }
+.edge.hot .blob { fill-opacity: var(--fo-hot); stroke-opacity: 0.95; stroke-width: var(--halo-hot); }
+.edge.dim .blob { fill-opacity: calc(var(--fo) * 0.25); stroke-opacity: var(--so-dim); }
+.edge.dim .spoke, .edge.dim .hub { opacity: .18; }
+.edge.hot .spoke { stroke-width: 5.5; }
+.edge { cursor: pointer; }
+sub, sup { font-size: 0.72em; line-height: 0; }
+.ghost { fill: none; stroke: var(--ghost); stroke-width: 2; stroke-dasharray: 6 6; stroke-linejoin: round; opacity: .8; pointer-events: none; }
+.axis { stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 2 5; pointer-events: none; }
+.vertex { cursor: grab; }
+.vertex.dragging, .handle.dragging { cursor: grabbing; }
+.vertex circle { fill: var(--vertex-fill); stroke: var(--vertex-stroke); stroke-width: 2; }
+.vertex.hovered circle, .vertex.dragging circle { stroke-width: 3.5; }
+.vertex.marked circle { stroke: var(--accent); stroke-width: 3.5; }
+.vertex text { fill: var(--ink); font-weight: 600; pointer-events: none; }
+.nolabels .vertex text { display: none; }
+.vertex:focus { outline: none; }
+.vertex:focus-visible circle { stroke: var(--focus); stroke-width: 3.5; }
+/* product background */
+.disc { fill: var(--line); fill-opacity: .3; stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; pointer-events: none; }
+.band { fill: var(--c); fill-opacity: .05; stroke: var(--c); stroke-opacity: .16; stroke-width: 24; stroke-linejoin: round; pointer-events: none; }
+.band.sel { fill-opacity: .09; stroke-opacity: .34; }
+.band.unsel { fill-opacity: .012; stroke-opacity: .05; }
+.inner { fill: var(--c); fill-opacity: .08; stroke: var(--c); stroke-opacity: .6; stroke-width: 1.3; stroke-linejoin: round; pointer-events: none; }
+.inner.sel { fill-opacity: .22; stroke-opacity: 1; stroke-width: 2.2; }
+.inner.unsel { fill-opacity: .015; stroke-opacity: .16; }
+.handle { cursor: grab; }
+.handle rect { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1.2; }
+.handle text { fill: var(--muted); font-size: 12px; font-weight: 600; pointer-events: none; }
+.handle:hover rect { stroke: var(--accent); }
+
+/* gallery */
+.gallery { padding: 12px 14px 14px; }
+.gallery h2, .block h2, .factor h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.grow { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
+.grow:first-of-type { border-top: 0; }
+.grow .glabel { font-size: 12.5px; color: var(--muted); padding-top: 6px; }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile {
+  width: 84px; padding: 4px 2px 5px; border: 1px solid transparent; border-radius: 8px;
+  background: none; color: var(--ink); cursor: pointer; text-align: center;
+  font: inherit; font-size: 11.5px; line-height: 1.2;
+}
+.tile svg { width: 62px; height: 62px; display: block; margin: 0 auto 2px; }
+.tile:hover { border-color: var(--line-strong); }
+.tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.tile .tv { fill: var(--ink); }
+.gallery .legend { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; max-width: 78ch; }
+@media (max-width: 560px) { .grow { grid-template-columns: 1fr; gap: 2px; } .grow .glabel { padding-top: 0; } }
+
+/* factor panels */
+.factors { padding: 12px 14px 14px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 680px) { .factors { grid-template-columns: minmax(0, 1fr); } }
+.factor { min-width: 0; }
+.factor .fhead { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.factor .fname { font-weight: 600; font-size: 16px; flex: none; }
+.factor select.fsel { flex: 1; min-width: 0; max-width: none; }
+.factor .fbody { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 10px; align-items: start; }
+.factor .fside { display: grid; gap: 8px; }
+.fmini { width: 148px; height: 148px; display: block; font-family: "Albert Sans", system-ui, sans-serif; }
+.fmini .medge { cursor: pointer; fill: var(--c); stroke: var(--c); fill-opacity: .2; stroke-opacity: .7; stroke-width: 5; stroke-linejoin: round; }
+.fmini .medge.bar { fill: none; stroke-opacity: 1; stroke-width: 8; }
+.fmini .medge.sel { fill-opacity: .5; stroke-opacity: 1; stroke-width: 7; }
+.fmini .medge.unsel { fill-opacity: .03; stroke-opacity: .15; }
+.fmini .medge.bar.unsel { stroke-opacity: .2; }
+.fmini .mv { cursor: default; }
+.fmini .mv circle { fill: var(--vertex-fill); stroke: var(--vertex-stroke); stroke-width: 3; }
+.fmini .mv:hover circle { stroke: var(--accent); stroke-width: 5; }
+.fmini .mv text { fill: var(--ink); font-size: 21px; font-weight: 600; pointer-events: none; }
+.fnote { font-size: 12.5px; color: var(--muted); margin: 0; }
+button.icon { padding: 5px 9px; line-height: 1; }
+
+/* side panel */
+.block { padding: 14px 16px; }
+.desc { margin: 0 0 10px; }
+dl.facts { margin: 0; display: grid; gap: 6px; font-size: 13.5px; }
+dl.facts div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; }
+ul.edges { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+ul.edges li {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 9px 4px 7px; border: 1px solid var(--line); border-radius: 999px;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 13px;
+  cursor: pointer; transition: border-color .12s, opacity .12s; white-space: nowrap;
+}
+ul.edges li .sw { width: 11px; height: 11px; border-radius: 50%; background: var(--c); flex: none; }
+ul.edges li:hover, ul.edges li.hot { border-color: var(--c); }
+ul.edges li.pinned { background: var(--c); color: #fff; border-color: var(--c); }
+ul.edges li.pinned .sw { background: #fff; }
+ul.edges li.dim { opacity: .35; }
+ul.edges li.ghostli { border-style: dashed; color: var(--muted); cursor: default; }
+ul.edges li.ghostli .sw { background: none; border: 1.5px dashed var(--ghost); }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.note:empty { display: none; }
+.controls { display: grid; gap: 10px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+input[type="range"] { width: 140px; accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); }
+select, button, textarea {
+  font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line-strong); border-radius: 7px;
+}
+select { padding: 5px 8px; max-width: 200px; }
+button { padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, summary:focus-visible, .tile:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+details[open] summary { margin-bottom: 10px; }
+textarea {
+  width: 100%; min-height: 132px; resize: vertical; padding: 8px 10px;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 12.5px; line-height: 1.5;
+}
+.help { font-size: 12.5px; color: var(--muted); margin: 6px 0 8px; }
+.help code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+.err { color: #c0392b; font-size: 13px; margin: 0 0 8px; white-space: pre-line; }
+.err:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body data-mode="single">
+<header class="top">
+  <div class="headrow">
+    <h1>3‑graph visualiser</h1>
+    <div class="modes" role="tablist" aria-label="View">
+      <button id="tabSingle" role="tab" aria-selected="true">Single 3‑graphs</button>
+      <button id="tabProduct" role="tab" aria-selected="false">Cross products</button>
+    </div>
+  </div>
+  <p class="only-single">The 27 non‑tripartite 3‑graphs on at most five vertices, each drawn with as much of its symmetry visible as the plane allows. Drag vertices to rearrange; hover a vertex or an edge to highlight, click an edge to pin it.</p>
+  <p class="only-product">The cross product H × F, drawn as one factor blown up into clusters with the other factor repeated inside each cluster. Choose the two factors below the drawing, then pick an edge of each to see the six product edges between them.</p>
+</header>
+<main>
+  <div class="col">
+    <section class="card canvas-card">
+      <div class="canvas-head">
+        <div class="title" id="title"></div>
+        <div class="nav only-single">
+          <button id="prev" aria-label="Previous 3-graph">Previous</button>
+          <button id="next" aria-label="Next 3-graph">Next</button>
+        </div>
+      </div>
+      <svg id="canvas" viewBox="0 0 640 640" aria-label="Drawing">
+        <g id="back"></g>
+        <g id="edges"></g>
+        <g id="handles"></g>
+        <g id="vertices"></g>
+      </svg>
+      <p class="hint only-product">Drag a vertex, or a badge to move its whole cluster. Shift‑drag also moves the cluster; Alt‑drag moves the corresponding vertex of every cluster.</p>
+    </section>
+
+    <section class="card factors only-product">
+      <div class="factor" id="facH">
+        <div class="fhead">
+          <span class="fname">H</span>
+          <select class="fsel" id="facH_sel" aria-label="Factor H"></select>
+          <button class="icon" id="facH_prev" aria-label="Previous choice for H">‹</button>
+          <button class="icon" id="facH_next" aria-label="Next choice for H">›</button>
+        </div>
+        <div class="fbody">
+          <svg class="fmini" id="facH_mini" viewBox="-150 -150 300 300" aria-label="Drawing of H"></svg>
+          <div class="fside">
+            <ul class="edges" id="facH_chips"></ul>
+            <p class="fnote" id="facH_note"></p>
+            <select id="facH_layout" aria-label="Layout of H"></select>
+          </div>
+        </div>
+      </div>
+      <div class="factor" id="facF">
+        <div class="fhead">
+          <span class="fname">F</span>
+          <select class="fsel" id="facF_sel" aria-label="Factor F"></select>
+          <button class="icon" id="facF_prev" aria-label="Previous choice for F">‹</button>
+          <button class="icon" id="facF_next" aria-label="Next choice for F">›</button>
+        </div>
+        <div class="fbody">
+          <svg class="fmini" id="facF_mini" viewBox="-150 -150 300 300" aria-label="Drawing of F"></svg>
+          <div class="fside">
+            <ul class="edges" id="facF_chips"></ul>
+            <p class="fnote" id="facF_note"></p>
+            <select id="facF_layout" aria-label="Layout of F"></select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card gallery only-single">
+      <h2>Catalogue</h2>
+      <div id="gallery"></div>
+      <p class="legend">H(G) is the 3‑graph on five vertices whose edges are the complements of the edges of the graph G. cone(G) has a new vertex joined to every edge of G. K₅ ∖ X is the complete 3‑graph K₅⁽³⁾ with a copy of X removed.</p>
+    </section>
+  </div>
+
+  <aside class="col">
+    <div class="card block">
+      <p class="desc" id="desc"></p>
+      <dl class="facts" id="facts"></dl>
+    </div>
+
+    <div class="card block">
+      <h2 id="edgesTitle">Edges</h2>
+      <ul class="edges" id="edgeList"></ul>
+      <p class="note" id="edgeNote"></p>
+    </div>
+
+    <div class="card block controls only-single">
+      <div class="row"><label for="layout">Layout</label><select id="layout"></select></div>
+      <div class="row">
+        <label for="style">Edge style</label>
+        <select id="style">
+          <option value="blob">Rounded triangles</option>
+          <option value="hub">Hub and spokes</option>
+        </select>
+      </div>
+      <div class="row"><label for="fill">Fill</label><input type="range" id="fill" min="0" max="0.6" step="0.02" value="0.22"></div>
+      <div class="row"><label for="halo">Halo width</label><input type="range" id="halo" min="0" max="40" step="1" value="14"></div>
+      <div class="row"><label for="scale">Size</label><input type="range" id="scale" min="0.4" max="1.25" step="0.05" value="1"></div>
+      <div class="checks">
+        <label><input type="checkbox" id="labels" checked> Vertex labels</label>
+        <label><input type="checkbox" id="showAxes" checked> Mirror axes</label>
+        <label><input type="checkbox" id="ghost" checked> Removed edges</label>
+      </div>
+      <div class="btns">
+        <button id="reset">Reset layout</button>
+        <button id="unpin">Unpin all</button>
+      </div>
+    </div>
+
+    <div class="card block controls only-product">
+      <div class="row">
+        <label for="pNest">Clusters</label>
+        <select id="pNest">
+          <option value="H">Vertices of H</option>
+          <option value="F">Vertices of F</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="pColour">Colour by</label>
+        <select id="pColour">
+          <option value="auto">Automatic</option>
+          <option value="H">Edge of H</option>
+          <option value="F">Edge of F</option>
+          <option value="match">Matching</option>
+        </select>
+      </div>
+      <div class="row"><label for="pFill">Fill</label><input type="range" id="pFill" min="0" max="3" step="0.1" value="1"></div>
+      <div class="row"><label for="pLine">Line width</label><input type="range" id="pLine" min="0.3" max="3" step="0.1" value="1"></div>
+      <div class="row"><label for="pSize">Size</label><input type="range" id="pSize" min="0.6" max="1" step="0.02" value="1"></div>
+      <div class="row"><label for="pCluster">Cluster size</label><input type="range" id="pCluster" min="0.5" max="1.5" step="0.05" value="1"></div>
+      <div class="checks">
+        <label><input type="checkbox" id="pLabels" checked> Vertex labels</label>
+        <label><input type="checkbox" id="pBack" checked> Factors behind</label>
+      </div>
+      <div class="btns">
+        <button id="pReset">Reset layout</button>
+        <button id="pUnpin">Unpin all</button>
+        <button id="pAll">Show all edges</button>
+      </div>
+    </div>
+
+    <div class="card block only-single">
+      <details id="defineBox">
+        <summary>Define your own 3‑graph</summary>
+        <textarea id="spec" spellcheck="false"></textarea>
+        <p class="help">Vertices are 1…n. Write each edge as <code>123</code> (n ≤ 9) or <code>1,2,3</code>. Edges after <code>ghost:</code> are drawn dashed. <code>pos:</code> gives coordinates (x to the right, y downwards, the default circle has radius 1).</p>
+        <p class="err" id="err"></p>
+        <div class="btns">
+          <button class="primary" id="load">Draw this 3‑graph</button>
+          <button id="copyPos">Write current positions</button>
+        </div>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const DATA = [{"id":"K13","name":"K₄⁻","short":"K₄⁻","pair":"","desc":"K₄⁽³⁾ minus one edge: the three triples through vertex 1, i.e. the cone over a triangle. One of the two minimal non‑tripartite 3‑graphs on at most five vertices.","n":4,"edges":[[1,2,3],[1,2,4],[1,3,4]],"ghosts":[[2,3,4]],"aut":6,"k4m":true,"f5":false,"layouts":[{"name":"Triangle and centre","pos":[[0.0,0.25],[0.0,-0.75],[0.866,0.75],[-0.866,0.75]],"axes":[30.0,90.0,150.0],"centre":[-0.0,0.25],"shown":6},{"name":"Square","pos":[[0.0,-1.0],[1.0,0.0],[0.0,1.0],[-1.0,0.0]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2}]},{"id":"K14","name":"K₄⁽³⁾","short":"K₄⁽³⁾","pair":"","desc":"All four triples on four vertices.","n":4,"edges":[[1,2,3],[1,2,4],[1,3,4],[2,3,4]],"ghosts":[],"aut":24,"k4m":true,"f5":false,"layouts":[{"name":"Square","pos":[[-0.8,-0.8],[0.8,-0.8],[0.8,0.8],[-0.8,0.8]],"axes":[0.0,45.0,90.0,135.0],"centre":[-0.0,-0.0],"shown":8},{"name":"Triangle and centre","pos":[[0.0,0.25],[0.0,-0.75],[0.866,0.75],[-0.866,0.75]],"axes":[30.0,90.0,150.0],"centre":[-0.0,0.25],"shown":6}]},{"id":"P3K2","name":"F₅","short":"F₅","pair":"P₃ + K₂","desc":"Two edges sharing a pair, and a third edge containing their symmetric difference. The other minimal non‑tripartite 3‑graph.","n":5,"edges":[[1,2,5],[2,3,4],[3,4,5]],"ghosts":[],"aut":4,"k4m":false,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2},{"name":"Kite","pos":[[0.0,1.0],[0.95,0.4],[0.0,-1.0],[0.0,0.0],[-0.95,0.4]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2}]},{"id":"P5","name":"C₅⁻","short":"C₅⁻","pair":"P₅ (path)","desc":"The tight 5‑cycle minus one edge.","n":5,"edges":[[1,2,3],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[[1,2,5]],"aut":2,"k4m":false,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K3K2","name":"F₃,₂","short":"F₃,₂","pair":"K₃ + K₂","desc":"Three edges through a common pair, plus the edge on the three remaining vertices.","n":5,"edges":[[1,2,5],[1,3,4],[2,3,4],[3,4,5]],"ghosts":[],"aut":12,"k4m":false,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2},{"name":"Kite","pos":[[0.0,1.0],[0.95,0.4],[0.0,-1.0],[0.0,0.0],[-0.95,0.4]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2}]},{"id":"paw","name":"Cone over the paw","short":"cone(paw)","pair":"paw + K₁","desc":"Every edge contains vertex 5. Its link is the paw: a triangle with a pendant edge.","n":5,"edges":[[1,2,5],[1,3,5],[1,4,5],[2,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":false,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.6],[0.0,1.0],[-0.95,-0.6],[0.0,0.4]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[-0.5878,0.9045],[0.9511,-0.2135],[-0.9511,-0.2135],[0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"fork","name":"H(fork)","short":"H(fork)","pair":"fork","desc":"The complements of the edges of the fork (a claw with one edge subdivided).","n":5,"edges":[[1,2,5],[1,4,5],[2,3,4],[2,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,0.4],[0.0,1.0],[-0.95,0.4],[0.0,-0.2]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[0.5878,0.9045],[0.0,-0.9045],[-0.9511,-0.2135],[-0.5878,0.9045],[0.9511,-0.2135]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"C5","name":"C₅","short":"C₅","pair":"C₅","desc":"The tight 5‑cycle: the five triples of cyclically consecutive vertices. Isomorphic to its own complement in K₅⁽³⁾.","n":5,"edges":[[1,2,3],[1,2,5],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[],"aut":10,"k4m":false,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[18.0,54.0,90.0,126.0,162.0],"centre":[0.0,0.0955],"shown":10}]},{"id":"bull","name":"H(bull)","short":"H(bull)","pair":"bull","desc":"The complements of the edges of the bull (a triangle with pendant edges at two of its vertices). Isomorphic to its own complement in K₅⁽³⁾.","n":5,"edges":[[1,2,3],[1,3,4],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"banner","name":"H(banner)","short":"H(banner)","pair":"banner","desc":"The complements of the edges of the banner (a 4‑cycle with a pendant edge). Its complement in K₅⁽³⁾ is H(lollipop).","n":5,"edges":[[1,2,4],[1,2,5],[1,4,5],[2,3,5],[3,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.4],[0.0,1.0],[-0.95,-0.4],[0.0,0.0]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[0.5878,0.9045],[0.9511,-0.2135],[-0.9511,-0.2135],[-0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"lollipop","name":"H(lollipop)","short":"H(lollipop)","pair":"lollipop","desc":"The complements of the edges of the lollipop (a triangle with a pendant path of length two). Its complement in K₅⁽³⁾ is H(banner).","n":5,"edges":[[1,2,5],[1,3,5],[1,4,5],[2,3,4],[2,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,0.4],[0.0,1.0],[-0.95,0.4],[0.0,-0.2]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[-0.9511,-0.2135],[0.9511,-0.2135],[-0.5878,0.9045],[0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"cricket","name":"H(cricket)","short":"H(cricket)","pair":"cricket","desc":"The complements of the edges of the cricket (a triangle with two pendant edges at one vertex). Its complement in K₅⁽³⁾ is the cone over the diamond.","n":5,"edges":[[1,2,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[],"aut":4,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"diamond","name":"Cone over the diamond","short":"cone(diamond)","pair":"diamond + K₁","desc":"Every edge contains vertex 5. Its link is the diamond: K₄ minus an edge.","n":5,"edges":[[1,2,5],[1,3,5],[1,4,5],[2,3,5],[3,4,5]],"ghosts":[],"aut":4,"k4m":true,"f5":false,"layouts":[{"name":"Square and centre","pos":[[0.0,-1.0],[1.0,0.0],[0.0,1.0],[-1.0,0.0],[0.0,0.0]],"axes":[0.0,90.0],"centre":[-0.0,-0.0],"shown":4},{"name":"Pentagon","pos":[[0.9511,-0.2135],[0.5878,0.9045],[-0.9511,-0.2135],[-0.5878,0.9045],[0.0,-0.9045]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2},{"name":"Kite","pos":[[0.95,-0.6],[0.0,-1.0],[-0.95,-0.6],[0.0,1.0],[0.0,0.0]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2}]},{"id":"K4K1","name":"J₄","short":"J₄","pair":"K₄ + K₁","desc":"All six triples through vertex 5: the cone over K₄.","n":5,"edges":[[1,2,5],[1,3,5],[1,4,5],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[],"aut":24,"k4m":true,"f5":false,"layouts":[{"name":"Square and centre","pos":[[0.0,-1.0],[1.0,0.0],[0.0,1.0],[-1.0,0.0],[0.0,0.0]],"axes":[0.0,45.0,90.0,135.0],"centre":[-0.0,-0.0],"shown":8},{"name":"Pentagon","pos":[[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135],[0.0,-0.9045]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2},{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.6],[0.0,1.0],[-0.95,-0.6],[0.0,0.0]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2}]},{"id":"house","name":"C₅⁺","short":"C₅⁺","pair":"house","desc":"The tight 5‑cycle plus one edge. Equivalently, K₅⁽³⁾ minus C₅⁻.","n":5,"edges":[[1,2,3],[1,2,5],[1,3,4],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K23","name":"K₅⁽³⁾ ∖ F₃,₂","short":"K₅ ∖ F₃,₂","pair":"K₂,₃","desc":"K₅⁽³⁾ with a copy of F₃,₂ removed.","n":5,"edges":[[1,2,3],[1,2,4],[1,3,5],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[[1,2,5],[1,3,4],[2,3,5],[2,4,5]],"aut":12,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"butterfly","name":"K₅⁽³⁾ ∖ cone(C₄)","short":"K₅ ∖ cone(C₄)","pair":"butterfly","desc":"K₅⁽³⁾ with a cone over the 4‑cycle removed.","n":5,"edges":[[1,2,3],[1,4,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,2,4],[1,2,5],[1,3,4],[1,3,5]],"aut":8,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"dart","name":"K₅⁽³⁾ ∖ cone(paw)","short":"K₅ ∖ cone(paw)","pair":"dart","desc":"K₅⁽³⁾ with a cone over the paw removed.","n":5,"edges":[[1,2,4],[1,2,5],[1,4,5],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,2,3],[1,3,4],[1,3,5],[2,3,4]],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.4],[0.0,1.0],[-0.95,-0.4],[0.0,0.2]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[0.5878,0.9045],[0.9511,-0.2135],[-0.9511,-0.2135],[-0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"kite","name":"K₅⁽³⁾ ∖ H(fork)","short":"K₅ ∖ H(fork)","pair":"kite","desc":"K₅⁽³⁾ with a copy of H(fork) removed.","n":5,"edges":[[1,2,4],[1,2,5],[1,3,5],[1,4,5],[2,3,5],[3,4,5]],"ghosts":[[1,2,3],[1,3,4],[2,3,4],[2,4,5]],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.4],[0.0,1.0],[-0.95,-0.4],[0.0,0.0]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[0.5878,0.9045],[0.9511,-0.2135],[-0.9511,-0.2135],[-0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"K23e","name":"K₅⁽³⁾ ∖ F₅","short":"K₅ ∖ F₅","pair":"K₂,₃ plus an edge","desc":"K₅⁽³⁾ with a copy of F₅ removed.","n":5,"edges":[[1,2,3],[1,2,4],[1,2,5],[1,3,5],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[[1,3,4],[2,3,5],[2,4,5]],"aut":4,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K4pend","name":"K₅⁽³⁾ ∖ K₄⁻","short":"K₅ ∖ K₄⁻","pair":"K₄ with a pendant edge","desc":"K₅⁽³⁾ with a copy of K₄⁻ removed.","n":5,"edges":[[1,2,4],[1,2,5],[1,3,5],[1,4,5],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,2,3],[1,3,4],[2,3,4]],"aut":6,"k4m":true,"f5":true,"layouts":[{"name":"Kite","pos":[[0.0,-1.0],[0.95,-0.4],[0.0,1.0],[-0.95,-0.4],[0.0,0.2]],"axes":[90.0],"centre":[-0.0,-0.0],"shown":2},{"name":"Pentagon","pos":[[0.9511,-0.2135],[0.5878,0.9045],[-0.9511,-0.2135],[-0.5878,0.9045],[0.0,-0.9045]],"axes":[],"centre":[0.0,0.0955],"shown":1}]},{"id":"K113","name":"K₅⁽³⁾ ∖ book","short":"K₅ ∖ book","pair":"K₁,₁,₃","desc":"K₅⁽³⁾ minus three edges through a common pair.","n":5,"edges":[[1,2,3],[1,2,4],[1,3,4],[1,3,5],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[[1,2,5],[2,3,5],[2,4,5]],"aut":12,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"gem","name":"K₅⁽³⁾ ∖ tight path","short":"K₅ ∖ path","pair":"gem","desc":"K₅⁽³⁾ minus a tight path with three edges.","n":5,"edges":[[1,2,3],[1,2,5],[1,4,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,2,4],[1,3,4],[1,3,5]],"aut":2,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K5-P3","name":"K₅⁽³⁾ minus two edges sharing a pair","short":"K₅ ∖ 2, pair","pair":"K₅ minus P₃","desc":"K₅⁽³⁾ minus two edges that share two vertices.","n":5,"edges":[[1,2,3],[1,2,4],[1,2,5],[1,3,4],[1,3,5],[1,4,5],[2,3,4],[3,4,5]],"ghosts":[[2,3,5],[2,4,5]],"aut":4,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"W4","name":"K₅⁽³⁾ minus two edges sharing a vertex","short":"K₅ ∖ 2, vertex","pair":"W₄ (wheel)","desc":"K₅⁽³⁾ minus two edges that share exactly one vertex.","n":5,"edges":[[1,2,3],[1,2,5],[1,3,4],[1,4,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,2,4],[1,3,5]],"aut":8,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K5-e","name":"K₅⁽³⁾⁻","short":"K₅⁽³⁾⁻","pair":"K₅ minus an edge","desc":"K₅⁽³⁾ minus one edge.","n":5,"edges":[[1,2,3],[1,2,4],[1,2,5],[1,3,5],[1,4,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[[1,3,4]],"aut":12,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[90.0],"centre":[0.0,0.0955],"shown":2}]},{"id":"K5","name":"K₅⁽³⁾","short":"K₅⁽³⁾","pair":"K₅","desc":"All ten triples on five vertices.","n":5,"edges":[[1,2,3],[1,2,4],[1,2,5],[1,3,4],[1,3,5],[1,4,5],[2,3,4],[2,3,5],[2,4,5],[3,4,5]],"ghosts":[],"aut":120,"k4m":true,"f5":true,"layouts":[{"name":"Pentagon","pos":[[0.0,-0.9045],[0.9511,-0.2135],[0.5878,0.9045],[-0.5878,0.9045],[-0.9511,-0.2135]],"axes":[18.0,54.0,90.0,126.0,162.0],"centre":[0.0,0.0955],"shown":10}]}];
+  const FLIST = DATA.map((g, i) => i).filter(i => DATA[i].edges.length < 6);
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 640, H = 640, PAD = 16, R0 = 232;
+  const PALETTE = ["#e05a47", "#2b9eb3", "#e8a33d", "#6a4bc4", "#3aa66a", "#d4458f", "#4e6fd9", "#b2731f", "#1f9c8a", "#8d5a97"];
+  const NEUTRAL = "var(--ghost)";
+  const LETTERS = "abcdefghijklmnop";
+  const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const $ = id => document.getElementById(id);
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const range = n => Array.from({ length: n }, (_, i) => i);
+  const edgeText = (e, n) => e.join(n <= 9 ? "" : ",");
+  const round3 = x => Math.round(x * 1000) / 1000;
+  const SUBS = "₀₁₂₃₄₅₆₇₈₉";
+  const SUPS = { "⁻": "−", "⁺": "+", "⁽": "(", "⁾": ")", "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5" };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // names are stored with Unicode sub/superscripts; show them as real <sub>/<sup> where HTML is allowed
+  function fmt(s) {
+    return esc(s)
+      .replace(/[₀-₉]+(?:,[₀-₉]+)*/g, m => "<sub>" + m.replace(/[₀-₉]/g, c => SUBS.indexOf(c)) + "</sub>")
+      .replace(/[⁻⁺⁽⁾⁰¹²³⁴⁵]+/g, m => "<sup>" + m.split("").map(c => SUPS[c]).join("") + "</sup>");
+  }
+  function circle(n) {
+    return range(n).map(i => { const a = -Math.PI / 2 + 2 * Math.PI * i / n; return [Math.cos(a), Math.sin(a)]; });
+  }
+  function isTripartite(n, edges) {
+    if (n > 12) return null;
+    const col = new Array(n + 1).fill(0), total = Math.pow(3, n);
+    for (let c = 0; c < total; c++) {
+      let x = c;
+      for (let v = 1; v <= n; v++) { col[v] = x % 3; x = (x - col[v]) / 3; }
+      let ok = true;
+      for (const e of edges) {
+        if (col[e[0]] === col[e[1]] || col[e[0]] === col[e[2]] || col[e[1]] === col[e[2]]) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }
+  function addFact(k, v) {
+    const d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = k; dd.innerHTML = fmt(v); d.appendChild(dt); d.appendChild(dd); $("facts").appendChild(d);
+  }
+
+  /* ================= Scene: the interactive drawing shared by both views ================= */
+  function Scene(svg) {
+    this.svg = svg;
+    this.gBack = $("back"); this.gEdges = $("edges"); this.gHandles = $("handles"); this.gVerts = $("vertices");
+    this.V = []; this.E = []; this.handles = [];
+    this.pinned = new Set(); this.hoverEdge = null; this.hoverVertex = null; this.ext = null;
+    this.drag = null; this.pristine = true; this.orderKey = ""; this.hubs = false;
+    this.opt = { fill: 0.22, halo: 14, style: "blob", labels: true };
+    this.painter = null; this.onRender = null; this.moveSet = null;
+    const self = this;
+    svg.addEventListener("pointermove", ev => {
+      if (self.drag || ev.pointerType === "touch") return;
+      const t = ev.target, vg = t.closest(".vertex"), eg = t.closest(".edge");
+      self.setHover(vg ? null : (eg ? Number(eg.dataset.k) : null), vg ? Number(vg.dataset.i) : null);
+    });
+    svg.addEventListener("pointerleave", () => { if (!self.drag) self.setHover(null, null); });
+  }
+  Scene.prototype.setHover = function (e, v) {
+    if (e === this.hoverEdge && v === this.hoverVertex) return;
+    this.hoverEdge = e; this.hoverVertex = v; this.render();
+  };
+  Scene.prototype.point = function (ev) {
+    const pt = this.svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(this.svg.getScreenCTM().inverse());
+  };
+  Scene.prototype.togglePin = function (k) {
+    if (this.pinned.has(k)) this.pinned.delete(k); else this.pinned.add(k);
+    this.render();
+  };
+  Scene.prototype.attachDrag = function (grp, getMembers, hoverIndex) {
+    const self = this;
+    grp.addEventListener("pointerdown", ev => {
+      ev.preventDefault();
+      const p = self.point(ev);
+      self.drag = { grp, mem: getMembers(ev).map(i => ({ i, dx: self.V[i].x - p.x, dy: self.V[i].y - p.y })) };
+      grp.setPointerCapture(ev.pointerId);
+      grp.classList.add("dragging");
+      self.hoverEdge = null; self.hoverVertex = hoverIndex;
+    });
+    grp.addEventListener("pointermove", ev => {
+      if (!self.drag || self.drag.grp !== grp) return;
+      const p = self.point(ev);
+      for (const m of self.drag.mem) {
+        self.V[m.i].x = clamp(p.x + m.dx, PAD, W - PAD);
+        self.V[m.i].y = clamp(p.y + m.dy, PAD, H - PAD);
+      }
+      self.pristine = false;
+      self.render();
+    });
+    const end = () => {
+      if (self.drag && self.drag.grp === grp) { self.drag = null; grp.classList.remove("dragging"); self.render(); }
+    };
+    grp.addEventListener("pointerup", end);
+    grp.addEventListener("pointercancel", end);
+  };
+  Scene.prototype.setContent = function (V, E, o) {
+    const self = this;
+    this.V = V; this.E = E;
+    this.pinned.clear(); this.hoverEdge = this.hoverVertex = null; this.ext = null;
+    this.pristine = true; this.orderKey = ""; this.hubs = !!o.hubs; this.painter = o.painter || null;
+    this.gBack.innerHTML = ""; this.gEdges.innerHTML = ""; this.gHandles.innerHTML = ""; this.gVerts.innerHTML = "";
+    if (this.painter) this.painter.build(this.gBack, this);
+    E.forEach((e, k) => {
+      const grp = el("g", { class: "edge" });
+      grp.dataset.k = k; grp.dataset.style = "blob";
+      grp.style.setProperty("--c", e.color);
+      e.grp = grp; e.casing = el("polygon", { class: "casing" }); e.blob = el("polygon", { class: "blob" });
+      grp.appendChild(e.casing); grp.appendChild(e.blob);
+      if (self.hubs) {
+        e.spokes = range(3).map(() => { const ln = el("line", { class: "spoke" }); grp.appendChild(ln); return ln; });
+        e.hub = el("circle", { class: "hub", r: 6 }); grp.appendChild(e.hub);
+      }
+      e.isBar = e.hot = e.dim = e.hidden = false; e.style = "blob";
+      grp.addEventListener("click", () => self.togglePin(k));
+      self.gEdges.appendChild(grp);
+    });
+    V.forEach((v, i) => {
+      const grp = el("g", { class: "vertex", tabindex: "0", "aria-label": "Vertex " + v.label });
+      grp.dataset.i = i;
+      grp.appendChild(el("circle", { r: o.r }));
+      const t = el("text", { "text-anchor": "middle", "dominant-baseline": "central", "font-size": o.font });
+      t.textContent = v.label; grp.appendChild(t);
+      v.grp = grp; v.marked = false;
+      self.attachDrag(grp, ev => self.moveSet ? self.moveSet(i, ev) : [i], i);
+      grp.addEventListener("keydown", ev => {
+        const step = ev.shiftKey ? 20 : 5;
+        const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
+        if (!d) return;
+        ev.preventDefault();
+        v.x = clamp(v.x + d[0], PAD, W - PAD); v.y = clamp(v.y + d[1], PAD, H - PAD);
+        self.pristine = false; self.render();
+      });
+      self.gVerts.appendChild(grp);
+    });
+    this.handles = (o.handles || []).map(hd => {
+      const grp = el("g", { class: "handle" });
+      grp.appendChild(el("rect", { x: -11, y: -10, width: 22, height: 20, rx: 5 }));
+      const t = el("text", { "text-anchor": "middle", "dominant-baseline": "central" });
+      t.textContent = hd.label; grp.appendChild(t);
+      const tt = el("title"); tt.textContent = hd.title; grp.appendChild(tt);
+      self.attachDrag(grp, () => hd.members, null);
+      self.gHandles.appendChild(grp);
+      return { anchor: hd.anchor, grp };
+    });
+    this.render();
+  };
+  Scene.prototype.activeSet = function () {
+    const E = this.E, s = new Set(), hv = this.hoverVertex, ext = this.ext;
+    this.pinned.forEach(k => { if (E[k].visible) s.add(k); });
+    if (this.hoverEdge !== null && E[this.hoverEdge] && E[this.hoverEdge].visible) s.add(this.hoverEdge);
+    if (hv !== null || (ext && ext.edge)) {
+      for (let k = 0; k < E.length; k++) {
+        const e = E[k];
+        if (!e.visible) continue;
+        if ((hv !== null && (e.v[0] === hv || e.v[1] === hv || e.v[2] === hv)) || (ext && ext.edge && ext.edge(e))) s.add(k);
+      }
+    }
+    return s.size ? s : null;
+  };
+  Scene.prototype.render = function () {
+    const V = this.V, E = this.E, o = this.opt, st = this.svg.style;
+    st.setProperty("--fo", o.fill);
+    st.setProperty("--fo-hot", Math.min(0.75, o.fill * 2 + 0.1));
+    st.setProperty("--so", o.so === undefined ? 0.5 : o.so);
+    st.setProperty("--so-dim", o.soDim === undefined ? 0.12 : o.soDim);
+    st.setProperty("--halo", o.halo);
+    st.setProperty("--halo-hot", o.haloHot === undefined ? o.halo : o.haloHot);
+    const barW = Math.max(o.minBar === undefined ? 7 : o.minBar, o.halo * 0.55);
+    st.setProperty("--bar-w", barW);
+    st.setProperty("--bar-case", barW + (o.minBar === undefined ? 6 : 3));
+    this.svg.classList.toggle("nolabels", !o.labels);
+
+    const act = this.activeSet();
+    if (this.painter) this.painter.update(this);
+    const bars = [];
+    for (let k = 0; k < E.length; k++) {
+      const e = E[k], grp = e.grp;
+      if (!e.visible) { if (!e.hidden) { grp.style.display = "none"; e.hidden = true; } continue; }
+      if (e.hidden) { grp.style.display = ""; e.hidden = false; }
+      const a = V[e.v[0]], b = V[e.v[1]], c = V[e.v[2]];
+      const points = a.x + "," + a.y + " " + b.x + "," + b.y + " " + c.x + "," + c.y;
+      e.blob.setAttribute("points", points);
+      e.casing.setAttribute("points", points);
+      if (this.hubs) {
+        const cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3, P = [a, b, c];
+        for (let j = 0; j < 3; j++) {
+          const ln = e.spokes[j];
+          ln.setAttribute("x1", cx); ln.setAttribute("y1", cy); ln.setAttribute("x2", P[j].x); ln.setAttribute("y2", P[j].y);
+        }
+        e.hub.setAttribute("cx", cx); e.hub.setAttribute("cy", cy);
+        if (e.style !== o.style) { grp.dataset.style = o.style; e.style = o.style; }
+      }
+      // three (nearly) collinear vertices: draw the edge as a bar
+      const area2 = Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+      const l2 = Math.max((a.x - b.x) ** 2 + (a.y - b.y) ** 2, (b.x - c.x) ** 2 + (b.y - c.y) ** 2, (a.x - c.x) ** 2 + (a.y - c.y) ** 2);
+      const isBar = area2 < 0.03 * l2;
+      if (isBar !== e.isBar) { grp.classList.toggle("bar", isBar); e.isBar = isBar; }
+      if (isBar) bars.push(k);
+      const hot = !!(act && act.has(k)), dim = !!(act && !hot);
+      if (hot !== e.hot) { grp.classList.toggle("hot", hot); e.hot = hot; }
+      if (dim !== e.dim) { grp.classList.toggle("dim", dim); e.dim = dim; }
+    }
+    // drawing order: highlighted triangles above the rest, bars above everything
+    const key = (act ? Array.from(act).join(",") : "") + "|" + bars.join(",");
+    if (key !== this.orderKey) {
+      this.orderKey = key;
+      if (act) act.forEach(k => this.gEdges.appendChild(E[k].grp));
+      bars.forEach(k => this.gEdges.appendChild(E[k].grp));
+    }
+    const ext = this.ext;
+    for (let i = 0; i < V.length; i++) {
+      const v = V[i];
+      v.grp.setAttribute("transform", "translate(" + v.x + "," + v.y + ")");
+      v.grp.classList.toggle("hovered", this.hoverVertex === i);
+      const marked = !!(ext && ext.vertex && ext.vertex(v));
+      if (marked !== v.marked) { v.grp.classList.toggle("marked", marked); v.marked = marked; }
+    }
+    for (const hd of this.handles) {
+      const p = hd.anchor();
+      hd.grp.setAttribute("transform", "translate(" + p.x + "," + p.y + ")");
+    }
+    if (this.onRender) this.onRender(act);
+  };
+
+  const scene = new Scene($("canvas"));
+  let chipMap = [];           // [{k, li}] chips in the side panel tied to edges of the scene
+  scene.onRender = act => {
+    for (const c of chipMap) {
+      const pinned = scene.pinned.has(c.k), hot = !!(act && act.has(c.k));
+      c.li.classList.toggle("pinned", pinned);
+      c.li.classList.toggle("hot", hot && !pinned);
+      c.li.classList.toggle("dim", !!(act && !hot));
+    }
+  };
+  function edgeChip(k, text, title, color) {
+    const li = document.createElement("li");
+    li.style.setProperty("--c", color);
+    const sw = document.createElement("span"); sw.className = "sw";
+    li.appendChild(sw); li.appendChild(document.createTextNode(text));
+    li.title = title;
+    li.addEventListener("mouseenter", () => scene.setHover(k, null));
+    li.addEventListener("mouseleave", () => { if (scene.hoverEdge === k) scene.setHover(null, null); });
+    li.addEventListener("click", () => scene.togglePin(k));
+    $("edgeList").appendChild(li);
+    chipMap.push({ k, li });
+  }
+
+  /* ================= View 1: single 3-graphs ================= */
+  const single = { graph: null, layout: 0, catalog: 0, scale: 1, axes: true, ghost: true, fill: 0.22, halo: 14, style: "blob", labels: true };
+
+  function specOf(g, li) {
+    const L = g.layouts[li];
+    let s = "name: " + g.name + "\nn: " + g.n + "\nedges: " + g.edges.map(e => edgeText(e, g.n)).join(" ");
+    if (g.ghosts.length) s += "\nghost: " + g.ghosts.map(e => edgeText(e, g.n)).join(" ");
+    s += "\npos: " + L.pos.map((p, i) => (i + 1) + " " + p[0] + " " + p[1]).join("; ");
+    return s;
+  }
+  function parseSpec(text) {
+    const g = { name: "Custom 3‑graph", n: 0, edges: [], ghosts: [], custom: true };
+    const errors = [], rawEdges = [], rawGhosts = [], posMap = {};
+    for (const raw of text.split("\n")) {
+      const line = raw.trim();
+      if (!line) continue;
+      const m = line.match(/^([A-Za-z]+)\s*:\s*(.*)$/);
+      if (!m) { errors.push("Cannot read the line “" + line + "”."); continue; }
+      const key = m[1].toLowerCase(), val = m[2].trim();
+      if (key === "name") g.name = val;
+      else if (key === "n") g.n = parseInt(val, 10);
+      else if (key === "edges" || key === "edge") rawEdges.push(...val.split(/[\s;]+/).filter(Boolean));
+      else if (key === "ghost" || key === "ghosts") rawGhosts.push(...val.split(/[\s;]+/).filter(Boolean));
+      else if (key === "pos") {
+        for (const chunk of val.split(";")) {
+          const t = chunk.trim().split(/[\s,]+/).filter(Boolean);
+          if (t.length === 3 && t.every(x => !isNaN(parseFloat(x)))) posMap[parseInt(t[0], 10)] = [parseFloat(t[1]), parseFloat(t[2])];
+          else if (chunk.trim()) errors.push("Cannot read the position “" + chunk.trim() + "”. Write: vertex x y.");
+        }
+      } else errors.push("Unknown field “" + key + "”.");
+    }
+    if (!(g.n >= 3 && g.n <= 40)) errors.push("n must be between 3 and 40.");
+    const parseEdge = tok => {
+      let vs;
+      if (/^\d+$/.test(tok) && g.n <= 9) vs = tok.split("").map(Number);
+      else vs = tok.split(/[^0-9]+/).filter(Boolean).map(Number);
+      if (vs.length !== 3 || new Set(vs).size !== 3) return null;
+      if (vs.some(v => v < 1 || v > g.n)) return null;
+      return vs.sort((a, b) => a - b);
+    };
+    const uniq = arr => { const seen = new Set(); return arr.filter(e => { const k = e.join(","); if (seen.has(k)) return false; seen.add(k); return true; }); };
+    for (const tok of rawEdges) { const e = parseEdge(tok); if (e) g.edges.push(e); else errors.push("“" + tok + "” is not an edge on 1…" + g.n + "."); }
+    for (const tok of rawGhosts) { const e = parseEdge(tok); if (e) g.ghosts.push(e); else errors.push("“" + tok + "” is not an edge on 1…" + g.n + "."); }
+    g.edges = uniq(g.edges); g.ghosts = uniq(g.ghosts);
+    if (!errors.length) {
+      const pos = circle(g.n);
+      for (const v in posMap) if (v >= 1 && v <= g.n) pos[v - 1] = posMap[v];
+      g.layouts = [{ name: Object.keys(posMap).length ? "As written" : "Circle", pos, axes: [], centre: [0, 0], shown: null }];
+    }
+    return { g, errors };
+  }
+
+  function thumb(g) {
+    const L = g.layouts[0];
+    const s = el("svg", { viewBox: "-1.28 -1.28 2.56 2.56", "aria-hidden": "true" });
+    const bars = [];
+    g.edges.forEach((e, i) => {
+      const pts = e.map(v => L.pos[v - 1]);
+      const a = Math.abs((pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]) - (pts[1][1] - pts[0][1]) * (pts[2][0] - pts[0][0]));
+      const col = PALETTE[i % PALETTE.length], points = pts.map(p => p[0] + "," + p[1]).join(" ");
+      if (a < 0.01) { bars.push(el("polygon", { points, fill: "none", stroke: col, "stroke-width": 0.12, "stroke-linejoin": "round" })); return; }
+      s.appendChild(el("polygon", { points, fill: col, "fill-opacity": 0.24, stroke: col, "stroke-opacity": 0.75, "stroke-width": 0.06, "stroke-linejoin": "round" }));
+    });
+    bars.forEach(b => s.appendChild(b));
+    L.pos.forEach(p => s.appendChild(el("circle", { cx: p[0], cy: p[1], r: 0.1, class: "tv" })));
+    return s;
+  }
+  function buildGallery() {
+    const box = $("gallery"), groups = [];
+    DATA.forEach((g, i) => {
+      const key = g.n === 4 ? "4 vertices" : g.edges.length + " edges";
+      let grp = groups.find(x => x.key === key);
+      if (!grp) { grp = { key, items: [] }; groups.push(grp); }
+      grp.items.push(i);
+    });
+    let first5 = true;
+    for (const grp of groups) {
+      const row = document.createElement("div"); row.className = "grow";
+      const lab = document.createElement("div"); lab.className = "glabel";
+      if (grp.key === "4 vertices") lab.textContent = "4 vertices";
+      else { lab.textContent = (first5 ? "5 vertices, " : "") + grp.key; first5 = false; }
+      const tiles = document.createElement("div"); tiles.className = "tiles";
+      for (const i of grp.items) {
+        const b = document.createElement("button");
+        b.className = "tile"; b.type = "button"; b.dataset.index = i;
+        b.setAttribute("aria-pressed", "false");
+        b.title = DATA[i].name;
+        b.appendChild(thumb(DATA[i]));
+        const sp = document.createElement("span"); sp.innerHTML = fmt(DATA[i].short); b.appendChild(sp);
+        b.addEventListener("click", () => selectCatalog(i));
+        tiles.appendChild(b);
+      }
+      row.appendChild(lab); row.appendChild(tiles); box.appendChild(row);
+    }
+  }
+  function markTile() {
+    document.querySelectorAll(".tile").forEach(b =>
+      b.setAttribute("aria-pressed", String(!single.graph.custom && Number(b.dataset.index) === single.catalog)));
+  }
+  function selectCatalog(i) {
+    single.catalog = (i + DATA.length) % DATA.length;
+    single.graph = DATA[single.catalog]; single.layout = 0;
+    $("spec").value = specOf(single.graph, 0);
+    $("err").textContent = "";
+    showSingle();
+  }
+
+  function singleContent() {
+    const g = single.graph, L = g.layouts[single.layout], s = R0 * single.scale;
+    const V = L.pos.map((p, i) => ({ label: String(i + 1), x: W / 2 + s * p[0], y: H / 2 + s * p[1] }));
+    const E = g.edges.map((e, k) => ({ v: e.map(x => x - 1), color: PALETTE[k % PALETTE.length], visible: true }));
+    let axisEls = [], ghostEls = [];
+    const painter = {
+      build(layer) {
+        layer.style.display = "";
+        axisEls = (L.axes || []).map(() => { const ln = el("line", { class: "axis" }); layer.appendChild(ln); return ln; });
+        ghostEls = g.ghosts.map(() => { const p = el("polygon", { class: "ghost" }); layer.appendChild(p); return p; });
+      },
+      update(sc) {
+        // mirror axes of the stored layout, shown only while the layout is untouched
+        const show = single.axes && sc.pristine, r = R0 * single.scale;
+        const cx = W / 2 + r * L.centre[0], cy = H / 2 + r * L.centre[1];
+        axisEls.forEach((ln, i) => {
+          ln.style.display = show ? "" : "none";
+          const a = L.axes[i] * Math.PI / 180, dx = Math.cos(a) * 460, dy = Math.sin(a) * 460;
+          ln.setAttribute("x1", cx - dx); ln.setAttribute("y1", cy - dy); ln.setAttribute("x2", cx + dx); ln.setAttribute("y2", cy + dy);
+        });
+        ghostEls.forEach((p, i) => {
+          p.style.display = single.ghost ? "" : "none";
+          p.setAttribute("points", g.ghosts[i].map(v => sc.V[v - 1].x + "," + sc.V[v - 1].y).join(" "));
+        });
+      }
+    };
+    scene.opt = { fill: single.fill, halo: single.halo, style: single.style, labels: single.labels };
+    scene.moveSet = null;
+    chipMap = [];
+    scene.setContent(V, E, { r: g.n > 12 ? 11 : 14, font: g.n > 12 ? 12 : 15, hubs: true, painter });
+  }
+  function singleInfo() {
+    const g = single.graph, L = g.layouts[single.layout];
+    $("facts").innerHTML = "";
+    const ne = g.edges.length;
+    addFact("Size", g.n + " vertices, " + ne + (ne === 1 ? " edge" : " edges"));
+    if (g.custom) {
+      $("desc").textContent = "A 3‑graph you defined.";
+      const t = isTripartite(g.n, g.edges);
+      addFact("Tripartite", t === null ? "Not checked (more than 12 vertices)" : (t ? "Yes" : "No"));
+      return;
+    }
+    $("desc").innerHTML = fmt(g.desc);
+    let sym;
+    if (L.shown === g.aut) sym = g.aut + " automorphisms, all visible as symmetries of this drawing.";
+    else if (L.shown > 1) sym = g.aut + " automorphisms, " + L.shown + " of them visible as symmetries of this drawing.";
+    else sym = g.aut + " automorphisms; this layout shows none of them.";
+    addFact("Symmetry", sym);
+    let sub;
+    if (g.id === "K13" || g.id === "P3K2") sub = "Minimal: every proper subgraph is tripartite.";
+    else if (g.k4m && g.f5) sub = "Contains both K₄⁻ and F₅.";
+    else if (g.k4m) sub = "Contains K₄⁻ but not F₅.";
+    else sub = "Contains F₅ but not K₄⁻.";
+    addFact("Subgraphs", sub);
+    if (g.pair) addFact("Pair graph", g.pair + ". The edges are the complements of its edges.");
+  }
+  function showSingle() {
+    const g = single.graph;
+    $("title").innerHTML = fmt(g.name);
+    const sel = $("layout"); sel.innerHTML = "";
+    g.layouts.forEach((L, i) => {
+      const o = document.createElement("option"); o.value = i;
+      o.textContent = L.name + (L.shown ? (L.shown > 1 ? ", " + L.shown + " symmetries" : ", no symmetry") : "");
+      sel.appendChild(o);
+    });
+    sel.value = single.layout; sel.disabled = g.layouts.length < 2;
+    $("edgesTitle").textContent = "Edges";
+    $("edgeList").innerHTML = ""; $("edgeNote").textContent = "";
+    singleContent();
+    g.edges.forEach((e, k) => edgeChip(k, edgeText(e, g.n), "Edge {" + e.join(", ") + "}", PALETTE[k % PALETTE.length]));
+    g.ghosts.forEach(e => {
+      const li = document.createElement("li"); li.className = "ghostli";
+      const sw = document.createElement("span"); sw.className = "sw";
+      li.appendChild(sw); li.appendChild(document.createTextNode(edgeText(e, g.n)));
+      li.title = "Removed edge {" + e.join(", ") + "}";
+      $("edgeList").appendChild(li);
+    });
+    singleInfo(); markTile();
+  }
+
+  $("load").addEventListener("click", () => {
+    const { g, errors } = parseSpec($("spec").value);
+    $("err").textContent = errors.join("\n");
+    if (errors.length) return;
+    single.graph = g; single.layout = 0; showSingle();
+  });
+  $("copyPos").addEventListener("click", () => {
+    const s = R0 * single.scale;
+    const line = "pos: " + scene.V.map((v, i) => (i + 1) + " " + round3((v.x - W / 2) / s) + " " + round3((v.y - H / 2) / s)).join("; ");
+    const ta = $("spec");
+    const lines = ta.value.split("\n").filter(l => !/^\s*pos\s*:/i.test(l) && l.trim() !== "");
+    lines.push(line);
+    ta.value = lines.join("\n");
+    $("defineBox").open = true;
+  });
+  $("prev").addEventListener("click", () => selectCatalog(single.graph.custom ? single.catalog : single.catalog - 1));
+  $("next").addEventListener("click", () => selectCatalog(single.graph.custom ? single.catalog : single.catalog + 1));
+  $("layout").addEventListener("change", ev => {
+    single.layout = Number(ev.target.value);
+    if (!single.graph.custom) $("spec").value = specOf(single.graph, single.layout);
+    showSingle();
+  });
+  $("reset").addEventListener("click", showSingle);
+  $("unpin").addEventListener("click", () => { scene.pinned.clear(); scene.render(); });
+  $("style").addEventListener("change", ev => { single.style = scene.opt.style = ev.target.value; scene.render(); });
+  $("fill").addEventListener("input", ev => { single.fill = scene.opt.fill = parseFloat(ev.target.value); scene.render(); });
+  $("halo").addEventListener("input", ev => { single.halo = scene.opt.halo = parseFloat(ev.target.value); scene.render(); });
+  $("scale").addEventListener("input", ev => {
+    const s = parseFloat(ev.target.value), k = s / single.scale;
+    for (const v of scene.V) { v.x = clamp(W / 2 + (v.x - W / 2) * k, PAD, W - PAD); v.y = clamp(H / 2 + (v.y - H / 2) * k, PAD, H - PAD); }
+    single.scale = s; scene.render();
+  });
+  $("labels").addEventListener("change", ev => { single.labels = scene.opt.labels = ev.target.checked; scene.render(); });
+  $("ghost").addEventListener("change", ev => { single.ghost = ev.target.checked; scene.render(); });
+  $("showAxes").addEventListener("change", ev => { single.axes = ev.target.checked; scene.render(); });
+
+  /* ================= View 2: cross products H × F ================= */
+  const idOf = id => DATA.findIndex(g => g.id === id);
+  const product = {
+    h: idOf("P5"), f: FLIST.indexOf(idOf("P3K2")), hl: 0, fl: 0,
+    selH: new Set(), selF: new Set(), hovH: null, hovF: null,
+    nest: "H", colour: "auto", fillK: 1, lineK: 1, size: 1, cluster: 1, labels: true, background: true,
+    fibers: [], shown: 0
+  };
+  const pH = () => DATA[product.h], pF = () => DATA[FLIST[product.f]];
+  const facName = w => (w === "H" ? pH() : pF());
+  const facSel = w => (w === "H" ? product.selH : product.selF);
+  const facLayout = w => facName(w).layouts[w === "H" ? product.hl : product.fl];
+  const vLabel = (w, i) => (w === "H" ? String(i + 1) : LETTERS[i]);
+  const eLabel = (w, e) => e.map(v => vLabel(w, v - 1)).join("");
+
+  function colourMode() {
+    if (product.colour !== "auto") return product.colour;
+    const blocks = (product.selH.size || pH().edges.length) * (product.selF.size || pF().edges.length);
+    return blocks === 1 ? "match" : product.nest;
+  }
+
+  function productContent() {
+    const G = pH(), F = pF(), nG = G.n, nF = F.n, nest = product.nest;
+    const outer = nest === "H" ? G : F, inner = nest === "H" ? F : G;
+    const LO = facLayout(nest), LI = facLayout(nest === "H" ? "F" : "H");
+    const nO = outer.n, nI = inner.n;
+    const idx = (g, h) => g * nF + h;                       // g: vertex of H, h: vertex of F (0-based)
+    const at = (o, i) => (nest === "H" ? idx(o, i) : idx(i, o));   // o: outer vertex, i: inner vertex
+    let dmin = Infinity;
+    for (let a = 0; a < nO; a++) for (let b = a + 1; b < nO; b++) dmin = Math.min(dmin, Math.hypot(LO.pos[a][0] - LO.pos[b][0], LO.pos[a][1] - LO.pos[b][1]));
+    const rho = Math.min(0.34, 0.43 * dmin) * product.cluster;
+    const unit = new Array(nG * nF); let ext = 0;
+    for (let o = 0; o < nO; o++) for (let i = 0; i < nI; i++) {
+      const x = LO.pos[o][0] + rho * LI.pos[i][0], y = LO.pos[o][1] + rho * LI.pos[i][1];
+      unit[at(o, i)] = [x, y]; ext = Math.max(ext, Math.abs(x), Math.abs(y));
+    }
+    const s = (W / 2 - 48) / ext * product.size;
+    const V = unit.map((p, j) => {
+      const g = Math.floor(j / nF), h = j % nF;
+      return { label: (g + 1) + LETTERS[h], g, h, x: W / 2 + s * p[0], y: H / 2 + s * p[1] };
+    });
+    const E = [];
+    G.edges.forEach((e, ei) => F.edges.forEach((f, fi) => PERMS.forEach((p, pi) => {
+      E.push({ v: [0, 1, 2].map(j => idx(e[j] - 1, f[p[j]] - 1)), ei, fi, pi, color: NEUTRAL, visible: true });
+    })));
+
+    let layerRef = null, discEls = [], bandEls = [], innerEls = [];
+    const painter = {
+      build(layer) {
+        layerRef = layer;
+        bandEls = outer.edges.map(() => { const p = el("polygon", { class: "band" }); layer.appendChild(p); return p; });
+        discEls = range(nO).map(() => { const c = el("circle", { class: "disc" }); layer.appendChild(c); return c; });
+        innerEls = [];
+        for (let o = 0; o < nO; o++) inner.edges.forEach((f, fi) => {
+          const p = el("polygon", { class: "inner" }); layer.appendChild(p); innerEls.push({ o, fi, f, p });
+        });
+      },
+      update(sc) {
+        layerRef.style.display = product.background ? "" : "none";
+        const fib = range(nO).map(o => {
+          let x = 0, y = 0;
+          for (let i = 0; i < nI; i++) { const v = sc.V[at(o, i)]; x += v.x; y += v.y; }
+          x /= nI; y /= nI;
+          let r = 0;
+          for (let i = 0; i < nI; i++) { const v = sc.V[at(o, i)]; r = Math.max(r, Math.hypot(v.x - x, v.y - y)); }
+          return { x, y, r: r + 17 };
+        });
+        product.fibers = fib;
+        if (!product.background) return;
+        const mode = colourMode(), inName = nest === "H" ? "F" : "H";
+        const emph = w => {
+          const hov = w === "H" ? product.hovH : product.hovF, sel = facSel(w);
+          return hov !== null ? new Set([hov]) : (sel.size ? sel : null);
+        };
+        const eo = emph(nest), ei = emph(inName);
+        discEls.forEach((c, o) => { c.setAttribute("cx", fib[o].x); c.setAttribute("cy", fib[o].y); c.setAttribute("r", fib[o].r); });
+        bandEls.forEach((p, k) => {
+          p.setAttribute("points", outer.edges[k].map(v => fib[v - 1].x + "," + fib[v - 1].y).join(" "));
+          p.style.setProperty("--c", mode === nest ? PALETTE[k % PALETTE.length] : NEUTRAL);
+          p.classList.toggle("sel", !!(eo && eo.has(k)));
+          p.classList.toggle("unsel", !!(eo && !eo.has(k)));
+        });
+        innerEls.forEach(it => {
+          it.p.setAttribute("points", it.f.map(v => { const q = sc.V[at(it.o, v - 1)]; return q.x + "," + q.y; }).join(" "));
+          it.p.style.setProperty("--c", mode === inName ? PALETTE[it.fi % PALETTE.length] : NEUTRAL);
+          it.p.classList.toggle("sel", !!(ei && ei.has(it.fi)));
+          it.p.classList.toggle("unsel", !!(ei && !ei.has(it.fi)));
+        });
+      }
+    };
+    const handles = range(nO).map(o => ({
+      label: vLabel(nest, o),
+      title: "Drag to move the whole cluster of vertex " + vLabel(nest, o) + " of " + nest,
+      members: range(nI).map(i => at(o, i)),
+      anchor: () => {
+        const fb = product.fibers[o];
+        let dx = fb.x - W / 2, dy = fb.y - H / 2;
+        const d = Math.hypot(dx, dy);
+        if (d < 20) { dx = -0.7071; dy = -0.7071; } else { dx /= d; dy /= d; }
+        return { x: clamp(fb.x + dx * (fb.r + 14), 13, W - 13), y: clamp(fb.y + dy * (fb.r + 14), 12, H - 12) };
+      }
+    }));
+    scene.moveSet = (j, ev) => {
+      const v = V[j];
+      const sameOuter = u => (nest === "H" ? u.g === v.g : u.h === v.h), sameInner = u => (nest === "H" ? u.h === v.h : u.g === v.g);
+      if (ev.shiftKey) return range(V.length).filter(u => sameOuter(V[u]));
+      if (ev.altKey) return range(V.length).filter(u => sameInner(V[u]));
+      return [j];
+    };
+    chipMap = [];
+    scene.opt = { fill: 0.05, halo: 2, style: "blob", labels: product.labels };
+    scene.setContent(V, E, { r: 10.5, font: 10.5, hubs: false, painter, handles });
+  }
+
+  // apply the edge filter, colours and line weights to the current product
+  function productRefresh() {
+    const E = scene.E, G = pH(), F = pF();
+    let n = 0;
+    for (const e of E) {
+      e.visible = (!product.selH.size || product.selH.has(e.ei)) && (!product.selF.size || product.selF.has(e.fi));
+      if (e.visible) n++;
+    }
+    product.shown = n;
+    const mode = colourMode();
+    for (const e of E) {
+      const c = mode === "H" ? PALETTE[e.ei % PALETTE.length] : mode === "F" ? PALETTE[e.fi % PALETTE.length] : PALETTE[e.pi];
+      if (c !== e.color) { e.color = c; e.grp.style.setProperty("--c", c); }
+    }
+    const tier = n <= 6 ? [0.2, 6, 0.75] : n <= 24 ? [0.1, 3.4, 0.6] : n <= 72 ? [0.045, 2.2, 0.5] : [0.022, 1.5, 0.42];
+    const halo = tier[1] * product.lineK;
+    scene.opt = { fill: Math.min(0.6, tier[0] * product.fillK), halo, haloHot: Math.max(halo, 4.5), so: tier[2], soDim: 0.07, style: "blob", labels: product.labels, minBar: Math.max(2, halo) };
+    scene.pinned.forEach(k => { if (!E[k].visible) scene.pinned.delete(k); });
+
+    // chips for the product edges, when few enough are shown to list
+    chipMap = []; $("edgeList").innerHTML = "";
+    $("edgesTitle").textContent = "Edges shown";
+    if (n <= 36) {
+      $("edgeNote").textContent = "";
+      E.forEach((e, k) => {
+        if (!e.visible) return;
+        const vs = e.v.map(j => scene.V[j]).sort((a, b) => a.g - b.g);
+        edgeChip(k, vs.map(v => v.label).join(" "), "Edge {" + vs.map(v => "(" + (v.g + 1) + ", " + LETTERS[v.h] + ")").join(", ") + "}", e.color);
+      });
+    } else {
+      $("edgeNote").textContent = n + " edges are shown. Choose an edge of H and an edge of F to list the six product edges between them.";
+    }
+
+    // info
+    $("facts").innerHTML = "";
+    $("desc").textContent = "Vertices are pairs: a vertex of H followed by a vertex of F, written as a number and a letter. Three of them form an edge when the numbers form an edge of H and the letters form an edge of F.";
+    addFact("Size", (G.n * F.n) + " vertices, " + E.length + " edges: six for each of the " + G.edges.length + " × " + F.edges.length + " pairs of edges.");
+    const part = (w, g) => { const s = facSel(w); return s.size ? Array.from(s).sort((a, b) => a - b).map(k => eLabel(w, g.edges[k])).join(", ") : "all"; };
+    addFact("Showing", n === E.length ? "All " + n + " edges." : n + " of " + E.length + " edges. Edges of H: " + part("H", G) + ". Edges of F: " + part("F", F) + ".");
+    let sub = "Contains F₅, so it is not tripartite. ";
+    if (G.k4m && F.k4m) sub += "Contains K₄⁻ as well.";
+    else sub += "Contains no K₄⁻, because " + [G, F].filter(x => !x.k4m).map(x => x.name).filter((x, i, a) => a.indexOf(x) === i).join(" and ") + " contains none.";
+    addFact("Subgraphs", sub);
+
+    paintFactor("H"); paintFactor("F");
+    scene.orderKey = "";
+    scene.render();
+  }
+
+  /* factor panels */
+  const fac = { H: { edges: [], chips: [] }, F: { edges: [], chips: [] } };
+  function buildFactor(w) {
+    const g = facName(w), L = facLayout(w), S = 100;
+    const svg = $("fac" + w + "_mini"), ul = $("fac" + w + "_chips");
+    svg.innerHTML = ""; ul.innerHTML = "";
+    fac[w].edges = []; fac[w].chips = [];
+    const preview = k => {
+      if (w === "H") product.hovH = k; else product.hovF = k;
+      scene.ext = k === null ? null : { edge: e => (w === "H" ? e.ei : e.fi) === k };
+      paintFactor(w); scene.render();
+    };
+    const toggle = k => {
+      const s = facSel(w);
+      if (s.has(k)) s.delete(k); else s.add(k);
+      productRefresh();
+    };
+    const bars = [];
+    g.edges.forEach((e, k) => {
+      const pts = e.map(v => L.pos[v - 1]);
+      const a = Math.abs((pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]) - (pts[1][1] - pts[0][1]) * (pts[2][0] - pts[0][0]));
+      const p = el("polygon", { class: "medge" + (a < 0.01 ? " bar" : ""), points: pts.map(q => (q[0] * S) + "," + (q[1] * S)).join(" ") });
+      p.style.setProperty("--c", PALETTE[k % PALETTE.length]);
+      p.addEventListener("pointerenter", () => preview(k));
+      p.addEventListener("pointerleave", () => preview(null));
+      p.addEventListener("click", () => toggle(k));
+      if (a < 0.01) bars.push(p); else svg.appendChild(p);
+      fac[w].edges.push(p);
+
+      const li = document.createElement("li");
+      li.style.setProperty("--c", PALETTE[k % PALETTE.length]);
+      const sw = document.createElement("span"); sw.className = "sw";
+      li.appendChild(sw); li.appendChild(document.createTextNode(eLabel(w, e)));
+      li.title = "Show only the product edges over this edge of " + w;
+      li.addEventListener("mouseenter", () => preview(k));
+      li.addEventListener("mouseleave", () => preview(null));
+      li.addEventListener("click", () => toggle(k));
+      ul.appendChild(li);
+      fac[w].chips.push(li);
+    });
+    bars.forEach(p => svg.appendChild(p));
+    L.pos.forEach((q, i) => {
+      const grp = el("g", { class: "mv", transform: "translate(" + (q[0] * S) + "," + (q[1] * S) + ")" });
+      grp.appendChild(el("circle", { r: 15 }));
+      const t = el("text", { "text-anchor": "middle", "dominant-baseline": "central" });
+      t.textContent = vLabel(w, i); grp.appendChild(t);
+      const tt = el("title"); tt.textContent = "Vertex " + vLabel(w, i) + " of " + w; grp.appendChild(tt);
+      grp.addEventListener("pointerenter", () => {
+        const has = v => (w === "H" ? v.g : v.h) === i;
+        scene.ext = { edge: e => e.v.some(j => has(scene.V[j])), vertex: has };
+        scene.render();
+      });
+      grp.addEventListener("pointerleave", () => { scene.ext = null; scene.render(); });
+      svg.appendChild(grp);
+    });
+    const ls = $("fac" + w + "_layout"); ls.innerHTML = "";
+    g.layouts.forEach((Lx, i) => {
+      const o = document.createElement("option"); o.value = i; o.textContent = "Layout: " + Lx.name.toLowerCase(); ls.appendChild(o);
+    });
+    ls.value = w === "H" ? product.hl : product.fl;
+    ls.style.display = g.layouts.length < 2 ? "none" : "";
+    $("fac" + w + "_sel").value = w === "H" ? product.h : product.f;
+  }
+  function paintFactor(w) {
+    const sel = facSel(w), hov = w === "H" ? product.hovH : product.hovF;
+    fac[w].edges.forEach((p, k) => {
+      const on = sel.has(k) || hov === k, any = sel.size > 0 || hov !== null;
+      p.classList.toggle("sel", any && on);
+      p.classList.toggle("unsel", any && !on);
+    });
+    fac[w].chips.forEach((li, k) => {
+      li.classList.toggle("pinned", sel.has(k));
+      li.classList.toggle("hot", hov === k && !sel.has(k));
+      li.classList.toggle("dim", sel.size > 0 && !sel.has(k) && hov !== k);
+    });
+    $("fac" + w + "_note").textContent = sel.size
+      ? "Showing the product edges over " + (sel.size === 1 ? "this edge" : "these " + sel.size + " edges") + " of " + w + "."
+      : "All edges of " + w + " are in use. Click one to isolate it.";
+  }
+  function showProduct(keepSelection) {
+    if (!keepSelection) { product.selH.clear(); product.selF.clear(); }
+    product.hovH = product.hovF = null;
+    $("title").innerHTML = fmt(pH().name) + " × " + fmt(pF().name);
+    buildFactor("H"); buildFactor("F");
+    productContent();
+    productRefresh();
+  }
+  function fillFactorSelects() {
+    const mk = (sel, list) => {
+      const groups = {};
+      list.forEach((di, j) => {
+        const g = DATA[di], key = g.edges.length + " edges";
+        if (!groups[key]) { groups[key] = document.createElement("optgroup"); groups[key].label = key; sel.appendChild(groups[key]); }
+        const o = document.createElement("option"); o.value = j; o.textContent = g.name + (g.n === 4 ? " (4 vertices)" : "");
+        groups[key].appendChild(o);
+      });
+    };
+    mk($("facH_sel"), DATA.map((g, i) => i));
+    mk($("facF_sel"), FLIST);
+  }
+  $("facH_sel").addEventListener("change", ev => { product.h = Number(ev.target.value); product.hl = 0; showProduct(false); });
+  $("facF_sel").addEventListener("change", ev => { product.f = Number(ev.target.value); product.fl = 0; showProduct(false); });
+  $("facH_prev").addEventListener("click", () => { product.h = (product.h - 1 + DATA.length) % DATA.length; product.hl = 0; showProduct(false); });
+  $("facH_next").addEventListener("click", () => { product.h = (product.h + 1) % DATA.length; product.hl = 0; showProduct(false); });
+  $("facF_prev").addEventListener("click", () => { product.f = (product.f - 1 + FLIST.length) % FLIST.length; product.fl = 0; showProduct(false); });
+  $("facF_next").addEventListener("click", () => { product.f = (product.f + 1) % FLIST.length; product.fl = 0; showProduct(false); });
+  $("facH_layout").addEventListener("change", ev => { product.hl = Number(ev.target.value); showProduct(true); });
+  $("facF_layout").addEventListener("change", ev => { product.fl = Number(ev.target.value); showProduct(true); });
+  $("pNest").addEventListener("change", ev => { product.nest = ev.target.value; showProduct(true); });
+  $("pColour").addEventListener("change", ev => { product.colour = ev.target.value; productRefresh(); });
+  $("pFill").addEventListener("input", ev => { product.fillK = parseFloat(ev.target.value); productRefresh(); });
+  $("pLine").addEventListener("input", ev => { product.lineK = parseFloat(ev.target.value); productRefresh(); });
+  $("pSize").addEventListener("input", ev => { product.size = parseFloat(ev.target.value); showProduct(true); });
+  $("pCluster").addEventListener("input", ev => { product.cluster = parseFloat(ev.target.value); showProduct(true); });
+  $("pLabels").addEventListener("change", ev => { product.labels = scene.opt.labels = ev.target.checked; scene.render(); });
+  $("pBack").addEventListener("change", ev => { product.background = ev.target.checked; scene.render(); });
+  $("pReset").addEventListener("click", () => showProduct(true));
+  $("pUnpin").addEventListener("click", () => { scene.pinned.clear(); scene.render(); });
+  $("pAll").addEventListener("click", () => { product.selH.clear(); product.selF.clear(); productRefresh(); });
+
+  /* ================= switching between the two views ================= */
+  let mode = null;
+  function setMode(m, fromHash) {
+    if (m === mode) return;
+    mode = m;
+    document.body.dataset.mode = m;
+    $("tabSingle").setAttribute("aria-selected", String(m === "single"));
+    $("tabProduct").setAttribute("aria-selected", String(m === "product"));
+    if (m === "single") showSingle(); else showProduct(true);
+    if (!fromHash) { try { location.hash = m === "single" ? "single" : "products"; } catch (e) { /* the view still switches */ } }
+  }
+  const modeOfHash = () => (location.hash === "#products" ? "product" : "single");
+  $("tabSingle").addEventListener("click", () => setMode("single"));
+  $("tabProduct").addEventListener("click", () => setMode("product"));
+  window.addEventListener("hashchange", () => setMode(modeOfHash(), true));
+
+  buildGallery();
+  fillFactorSelects();
+  single.catalog = Math.max(0, idOf("P5"));
+  single.graph = DATA[single.catalog];
+  $("spec").value = specOf(single.graph, 0);
+  setMode(modeOfHash(), true);
+})();
+</script>
+</body>
+</html>
