@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iterative absorption: the cover-down step</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #fcfcfc;
+    --ink: #222222;
+    --muted: #666666;
+    --rule: #dddddd;
+    --link: #0055aa;
+    --flash: #f0a500;
+    --left: #c62828;
+    --packed: #4788c9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --paper: #15181c;
+      --ink: #e8e8e8;
+      --muted: #a0a4aa;
+      --rule: #3a4048;
+      --link: #6fb1f5;
+      --flash: #ffc233;
+      --left: #ff7a6b;
+      --packed: #5b97d8;
+    }
+  }
+
+  body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+    line-height: 1.6;
+    color: var(--ink);
+    background-color: var(--paper);
+  }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { font-size: 1.7em; line-height: 1.25; margin: 0.6em 0 0.4em; }
+  h2 { font-size: 1.15em; margin: 1.8em 0 0.4em; }
+  p { margin: 0 0 1em; }
+  .back { margin: 0; font-size: 0.95em; }
+  .lead { max-width: 68ch; }
+  sub { font-size: 0.72em; line-height: 0; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 216px;
+    gap: 22px;
+    align-items: start;
+    margin: 1.4em 0 0.8em;
+  }
+  .view {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--rule);
+  }
+  .view canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .caption { min-height: 9.8em; margin: 0 0 1em; }
+  .todo { color: var(--muted); font-style: italic; }
+  .absorber { margin: 1.6em 0 0; max-width: 340px; }
+  .absorber svg { display: block; width: 100%; height: auto; }
+  .absorber .left { fill: var(--left); fill-opacity: 0.1; stroke: var(--left); stroke-width: 1.6; }
+  .absorber .edge line { stroke: var(--ink); stroke-width: 1.5; }
+  .absorber .vertex circle { fill: var(--ink); }
+  .absorber text { font-family: 'STIX Two Text', 'Cambria', 'Times New Roman', Times, serif; font-style: italic; font-size: 19px; fill: var(--ink); }
+  .absorber text.tag { font-family: inherit; font-style: normal; font-size: 13px; fill: var(--left); }
+  .absorber figcaption { margin-top: 0.5em; font-size: 0.9em; color: var(--muted); }
+  .hint { min-height: 2.9em; margin: 0.9em 0 0; font-size: 0.85em; color: var(--muted); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button, select {
+    font: inherit;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  select { padding: 7px 8px; }
+  button.primary { background: var(--link); border-color: var(--link); color: var(--paper); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  .speed { flex-basis: 500%; color: var(--muted); }
+
+  .notes { max-width: 68ch; }
+  .notes dt { font-weight: bold; margin-top: 1em; }
+  .notes dd { margin: 0; }
+  .ref { color: var(--muted); font-size: 0.92em; margin-top: 2em; }
+
+  @media (max-width: 640px) {
+    body { margin: 24px auto; }
+    .stage { grid-template-columns: 1fr; }
+    .caption { min-height: 4.8em; }
+  }
+</style>
+</head>
+<body>
+
+<p class="back"><a href="/">Simón Piga</a></p>
+
+<h1>Iterative absorption: the cover-down step</h1>
+
+<p class="lead">
+  To split a graph into triangles, iterative absorption pushes the uncovered edges
+  into smaller and smaller sets of vertices, until so few vertices remain that an
+  absorber prepared in advance can finish the job. Press Play to watch it happen,
+  and Stop when you think the leftover is small enough.
+</p>
+
+<div class="stage">
+  <div class="view">
+    <canvas id="canvas" role="img"
+      aria-label="A graph drawn inside a circle, with a smaller circle inside it. First a few small structures that reach into a red dot, the absorbers, are set aside. Then triangles are coloured until every edge outside the smaller circle is used, and the view zooms into the smaller circle, where the same thing happens again. At the end the view returns to the first circle and the absorbers take in the red dot."></canvas>
+  </div>
+
+  <div class="panel">
+    <p class="caption" id="caption" aria-live="polite"></p>
+    <div class="controls">
+      <button type="button" class="primary" id="play">Play</button>
+      <button type="button" id="step">Next step</button>
+      <button type="button" id="stop">Stop and absorb</button>
+      <button type="button" id="reset">Start over</button>
+      <label class="speed">Speed
+        <select id="speed">
+          <option value="0.5">Half</option>
+          <option value="1" selected>Normal</option>
+          <option value="2">Double</option>
+        </select>
+      </label>
+    </div>
+    <p class="hint" id="hint"></p>
+  </div>
+</div>
+
+<h2>What you are watching</h2>
+<!-- Simón: your text goes here, in place of the paragraph below. The earlier notes were written as
+     <dl class="notes"><dt>Heading</dt><dd>Text</dd></dl>, and that styling is still in the stylesheet. -->
+<p class="todo">[Text to come.]</p>
+
+<figure class="absorber">
+  <svg viewBox="0 0 360 220" role="img"
+    aria-label="An absorber on five vertices. The vertices x and y lie inside the leftover and are joined by an edge. The vertices a, b and c form a triangle, and each of them is joined to both x and y.">
+    <circle class="left" cx="72" cy="110" r="48"/>
+    <g class="edge">
+      <line x1="72" y1="86" x2="72" y2="134"/>
+      <line x1="72" y1="86" x2="250" y2="36"/>
+      <line x1="72" y1="86" x2="318" y2="110"/>
+      <line x1="72" y1="86" x2="250" y2="184"/>
+      <line x1="72" y1="134" x2="250" y2="36"/>
+      <line x1="72" y1="134" x2="318" y2="110"/>
+      <line x1="72" y1="134" x2="250" y2="184"/>
+      <line x1="250" y1="36" x2="318" y2="110"/>
+      <line x1="250" y1="36" x2="250" y2="184"/>
+      <line x1="318" y1="110" x2="250" y2="184"/>
+    </g>
+    <g class="vertex">
+      <circle cx="72" cy="86" r="4.5"/><circle cx="72" cy="134" r="4.5"/>
+      <circle cx="250" cy="36" r="4.5"/><circle cx="318" cy="110" r="4.5"/><circle cx="250" cy="184" r="4.5"/>
+    </g>
+    <text x="52" y="84">x</text><text x="52" y="146">y</text>
+    <text x="246" y="24">a</text><text x="330" y="116">b</text><text x="246" y="208">c</text>
+    <text class="tag" x="72" y="180" text-anchor="middle">leftover</text>
+  </svg>
+  <figcaption>An absorber. The vertices <i>x</i> and <i>y</i> lie in the leftover.</figcaption>
+</figure>
+
+<p class="ref">
+  The picture follows the triangle case as presented in B. Barber, S. Glock, D. Kühn, A. Lo,
+  R. Montgomery and D. Osthus, <i>Minimalist designs</i>,
+  <a href="https://arxiv.org/abs/1808.06956">arXiv:1808.06956</a>.
+</p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------
+     1. The model. Every set contains a smaller set, the next one, and so
+        on without end. Level j stands for the vertices of set j that are
+        not in set j+1, and P_j is a family of edge-disjoint triangles on
+        levels j and j+1, each with a vertex in level j. The graph is the
+        union of all the P_j, so removing P_j leaves only edges inside
+        set j+1.
+
+        The levels repeat with period PERIOD: level j + PERIOD is the same
+        graph as level j, so the animation can run for ever. It is never
+        the same drawing, though. Each set is turned by TWIST against the
+        set around it, so after PERIOD rounds the graph comes back turned
+        by an angle that never repeats, and on every pass its vertices are
+        pushed around by a fresh smooth random field (WOBBLE). The join
+        does not show because the levels further in are not drawn until
+        the view reaches them.
+     ------------------------------------------------------------------ */
+
+  var RATIO = 0.42;                    // radius of the next set / radius of the current set
+  var OFFSET = 0.36;                   // how far the next set sits from the centre of the current one
+  var PERIOD = 6;                      // number of rounds after which the picture repeats
+  var RING = 72;                       // vertices of a set that are not in the next set
+  var DIRS = [-0.7, 1.55, 3.8, -0.23, 2.02, 4.27];  // where the next set sits, level by level
+  var TWIST = Math.PI * (3 - Math.sqrt(5));  // each set is turned by this angle (the golden angle) against the one around it
+  var WOBBLE = 0.1;                    // how far a vertex may be pushed on each pass, as a fraction of the radius of its set (0: not at all)
+
+  function makeRandom(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function mod(j) { return ((j % PERIOD) + PERIOD) % PERIOD; }
+
+  function buildModel(seed) {
+    var rand = makeRandom(seed);
+    var child = [], rings = [], tris = [], used = {};
+    var j, k;
+
+    // the next set, in the coordinates of the current one (centre 0, radius 1)
+    for (j = 0; j < PERIOD; j++) {
+      child.push({ x: OFFSET * Math.cos(DIRS[j]), y: OFFSET * Math.sin(DIRS[j]), r: RATIO });
+    }
+
+    // vertices of each level: evenly spread random points outside the next set
+    for (j = 0; j < PERIOD; j++) {
+      var T0 = child[j], ring = [];
+      var area = Math.PI * (0.88 - T0.r * T0.r * 1.2);
+      var dmin = 0.74 * Math.sqrt(area / RING), fails = 0;
+      while (ring.length < RING) {
+        var ang = rand() * Math.PI * 2, d = 0.94 * Math.sqrt(rand());
+        var px = d * Math.cos(ang), py = d * Math.sin(ang);
+        var ok = Math.hypot(px - T0.x, py - T0.y) >= T0.r * 1.1;
+        for (k = 0; ok && k < ring.length; k++) {
+          if (Math.hypot(px - ring[k].x, py - ring[k].y) < dmin) ok = false;
+        }
+        if (ok) ring.push({ x: px, y: py });
+        else if (++fails % 300 === 0) dmin *= 0.96;
+      }
+      rings.push(ring);
+    }
+
+    function segDist(p, q, c) {      // distance from the centre of disc c to segment pq
+      var vx = q.x - p.x, vy = q.y - p.y, wx = c.x - p.x, wy = c.y - p.y;
+      var t = (vx * wx + vy * wy) / (vx * vx + vy * vy);
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(p.x + t * vx - c.x, p.y + t * vy - c.y);
+    }
+
+    // P_level: edge-disjoint triangles on this level and nearby vertices of the next
+    function pack(level) {
+      var next = (level + 1) % PERIOD, T = child[level];
+      var tc = Math.cos(TWIST), ts = Math.sin(TWIST);
+      function inner(p) {              // a point of the next level, in the coordinates of this one
+        return { x: T.x + RATIO * (tc * p.x - ts * p.y), y: T.y + RATIO * (ts * p.x + tc * p.y) };
+      }
+      var dc = inner(child[next]);
+      var D = { x: dc.x, y: dc.y, r: RATIO * RATIO };
+      var pts = [], A = [], B = [];
+      rings[level].forEach(function (p, i) {
+        A.push(pts.length);
+        pts.push({ x: p.x, y: p.y, d: 0, i: i, g: level * RING + i });
+      });
+      rings[next].forEach(function (p, i) {
+        var q = inner(p);
+        B.push(pts.length);
+        pts.push({ x: q.x, y: q.y, d: 1, i: i, g: next * RING + i });
+      });
+      var pool = A.concat(B), cnt = {}, nb = {}, out = [], stuck = {}, bb = 0;
+      var bbMin = Math.max(2, Math.round(RING * 0.06));
+      var bbMax = Math.max(bbMin, Math.round(RING * 0.14));
+      var dmax = Math.min(1.3, Math.max(0.36, 2.3 * Math.sqrt(2.6 / RING)));
+
+      function outer(a) { return pts[a].d === 0; }
+      function dist(a, b) { return Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y); }
+      function key(a, b) {
+        var ga = pts[a].g, gb = pts[b].g;
+        return ga < gb ? ga * 4096 + gb : gb * 4096 + ga;
+      }
+      function minAngle(a, b, c) {
+        var ab = dist(a, b), bc = dist(b, c), ca = dist(c, a);
+        function ang(o1, o2, opp) { return Math.acos(Math.max(-1, Math.min(1, (o1 * o1 + o2 * o2 - opp * opp) / (2 * o1 * o2)))); }
+        return Math.min(ang(ab, ca, bc), ang(ab, bc, ca), ang(bc, ca, ab));
+      }
+      function contains(a, b, c, p) {  // is point p inside triangle abc?
+        function side(u, v) { return (pts[v].x - pts[u].x) * (p.y - pts[u].y) - (pts[v].y - pts[u].y) * (p.x - pts[u].x); }
+        var s1 = side(a, b), s2 = side(b, c), s3 = side(c, a);
+        return (s1 > 0 && s2 > 0 && s3 > 0) || (s1 < 0 && s2 < 0 && s3 < 0);
+      }
+      function shuffle(arr) {
+        for (var n = arr.length - 1; n > 0; n--) {
+          var q = Math.floor(rand() * (n + 1)), tmp = arr[n]; arr[n] = arr[q]; arr[q] = tmp;
+        }
+      }
+
+      pool.forEach(function (v) { cnt[v] = 0; });
+      A.forEach(function (v) {
+        nb[v] = pool.filter(function (u) { return u !== v && dist(u, v) <= dmax; });
+      });
+
+      function edgeOK(a, b) {
+        if (used[key(a, b)]) return false;
+        // an edge between two outer vertices must not be drawn across the next set
+        if (outer(a) && outer(b) && segDist(pts[a], pts[b], T) < T.r * 1.1) return false;
+        // and no edge is drawn across the set after that
+        if (segDist(pts[a], pts[b], D) < D.r * 1.03) return false;
+        return true;
+      }
+      function tryAdd(v, needInner) {
+        var list = nb[v], best = null, bestScore = 1e9;
+        for (var p = 0; p < list.length; p++) {
+          var u = list[p];
+          if (!edgeOK(v, u)) continue;
+          for (var q = p + 1; q < list.length; q++) {
+            var w = list[q];
+            if (dist(u, w) > dmax || !edgeOK(v, w) || !edgeOK(u, w)) continue;
+            var ub = !outer(u), wb = !outer(w);
+            if (needInner && !(ub && wb)) continue;
+            if (ub && wb && bb >= bbMax) continue;       // only a few edges inside the next set
+            if (minAngle(v, u, w) < 0.4) continue;
+            if (!ub && !wb && contains(v, u, w, T)) continue;
+            if (contains(v, u, w, D)) continue;
+            var score = (ub ? 1.6 + 0.5 * cnt[u] : cnt[u]) + (wb ? 1.6 + 0.5 * cnt[w] : cnt[w]) +
+                        (ub && wb ? 1.5 : 0) + rand() * 0.9;
+            if (score < bestScore) { bestScore = score; best = [u, w]; }
+          }
+        }
+        if (!best) return false;
+        used[key(v, best[0])] = used[key(v, best[1])] = used[key(best[0], best[1])] = true;
+        cnt[v]++; cnt[best[0]]++; cnt[best[1]]++;
+        if (!outer(best[0]) && !outer(best[1])) bb++;
+        out.push([v, best[0], best[1]]);
+        return true;
+      }
+
+      // first, a few triangles that use an edge inside the next set
+      var nearest = A.slice().sort(function (u, v) {
+        return Math.hypot(pts[u].x - T.x, pts[u].y - T.y) - Math.hypot(pts[v].x - T.x, pts[v].y - T.y);
+      });
+      for (var h = 0; h < nearest.length && bb < bbMin; h++) tryAdd(nearest[h], true);
+
+      for (var target = 1; target <= 3; target++) {
+        var progress = true;
+        while (progress) {
+          progress = false;
+          var order = A.filter(function (v) { return cnt[v] < target && !stuck[v]; });
+          shuffle(order);
+          for (var n = 0; n < order.length; n++) {
+            var v = order[n];
+            if (cnt[v] >= target) continue;
+            if (tryAdd(v)) progress = true; else stuck[v] = true;
+          }
+        }
+      }
+
+      // take the triangles from the outside in, towards the next set
+      function far(t) {
+        return Math.hypot((pts[t[0]].x + pts[t[1]].x + pts[t[2]].x) / 3 - T.x,
+                          (pts[t[0]].y + pts[t[1]].y + pts[t[2]].y) / 3 - T.y);
+      }
+      out.sort(function (s, t) { return far(t) - far(s); });
+
+      // d = 0: a vertex of this level, d = 1: a vertex of the next one.
+      // Each side is 0 (outside the next set), 1 (crossing into it) or 2 (inside it).
+      return out.map(function (t) {
+        var v = t.map(function (a) { return { d: pts[a].d, i: pts[a].i }; });
+        var side = [0, 1, 2].map(function (e) { return v[e].d + v[(e + 1) % 3].d; });
+        return { v: v, side: side, inside: side.indexOf(2) };
+      });
+    }
+
+    for (j = 0; j < PERIOD; j++) tris.push(pack(j));
+    return { child: child, rings: rings, tris: tris, period: PERIOD, ring: RING };
+  }
+
+  var model = buildModel(20181);
+  var child = model.child, rings = model.rings, tris = model.tris;
+
+  // Where the vertices of level L are drawn, in the coordinates of their own set. Every
+  // level of every pass gets its own smooth random push. The push fades out towards the
+  // two circles, so each vertex stays on its side of both.
+  var sessionSeed = (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+  var placed = {}, placedCount = 0;
+  function place(L) {
+    if (placed[L]) return placed[L];
+    if (placedCount > 40) { placed = {}; placedCount = 0; }
+    var m = mod(L), ring = rings[m], c = child[m], out = ring;
+    if (WOBBLE > 0) {
+      var rnd = makeRandom((sessionSeed + Math.imul(L + 1, 0x9E3779B1)) >>> 0), waves = [];
+      for (var k = 0; k < 6; k++) {
+        var dir = rnd() * Math.PI * 2, freq = 2.5 + 3 * rnd();
+        waves.push({ kx: freq * Math.cos(dir), ky: freq * Math.sin(dir), ph: rnd() * Math.PI * 2 });
+      }
+      out = ring.map(function (p) {
+        var room = Math.min(1 - Math.hypot(p.x, p.y), Math.hypot(p.x - c.x, p.y - c.y) - c.r);
+        var amp = WOBBLE * Math.max(0, Math.min(1, room / 0.16)) / 3, dx = 0, dy = 0;
+        for (var n = 0; n < 3; n++) {
+          dx += Math.sin(waves[n].kx * p.x + waves[n].ky * p.y + waves[n].ph);
+          dy += Math.sin(waves[n + 3].kx * p.x + waves[n + 3].ky * p.y + waves[n + 3].ph);
+        }
+        return { x: p.x + amp * dx, y: p.y + amp * dy };
+      });
+    }
+    placed[L] = out; placedCount++;
+    return out;
+  }
+
+  /* ------------------------------------------------------------------
+     2. The script. Step zero sets the absorber aside (the phases mark and
+        aside). Then come the rounds, each with four phases. The whole
+        picture is a function of (round, phase, progress), so it can be
+        played, paused, stepped or sought.
+     ------------------------------------------------------------------ */
+
+  var FLASH = 450;                      // how long a freshly taken triangle glows, in ms
+  var MIN_ROUNDS = 5;                   // Stop and absorb is offered once this many rounds are done
+  var ABS_STEP = 520;                   // time between two absorbers taking in the leftover, in ms
+
+  // The point that lies in every set, where the leftover ends up, in the coordinates in
+  // which set b has centre 0 and radius 1.
+  function coreFrom(b) {
+    var x = 0, y = 0, sc = 1;
+    for (var j = b; j < b + 60; j++) {
+      var c = child[mod(j)], co = Math.cos(j * TWIST), si = Math.sin(j * TWIST);
+      x += sc * (co * c.x - si * c.y); y += sc * (si * c.x + co * c.y); sc *= RATIO;
+    }
+    return { x: x, y: y };
+  }
+  var CORE = coreFrom(0);
+
+  // The absorbers. Each has five vertices x, y, a, b, c with every pair joined by an edge.
+  // The vertices x and y lie in the leftover; a, b and c are vertices of the first set outside
+  // the smaller one, chosen so that the triangle abc is well shaped, uses no edge the graph
+  // already has, and stays clear of the smaller set. The absorbers lie in different directions
+  // around the leftover.
+  var ABSORBERS = (function () {
+    var COUNT = 3, ring = rings[0], n = ring.length, T = child[0], busy = {}, taken = {}, out = [];
+    function key(i, j) { return i < j ? i * 4096 + j : j * 4096 + i; }
+    function note(list, want) {         // the edges the graph already has between vertices of this level
+      list.forEach(function (t) {
+        for (var e = 0; e < 3; e++) if (t.side[e] === want) busy[key(t.v[e].i, t.v[(e + 1) % 3].i)] = true;
+      });
+    }
+    note(tris[0], 0); note(tris[PERIOD - 1], 2);
+    function len(i, j) { return Math.hypot(ring[i].x - ring[j].x, ring[i].y - ring[j].y); }
+    function free(i, j) {               // a new edge, of moderate length, that stays clear of the smaller set
+      var d = len(i, j);
+      if (busy[key(i, j)] || d < 0.2 || d > 0.46) return false;
+      var p = ring[i], q = ring[j], vx = q.x - p.x, vy = q.y - p.y;
+      var u = Math.max(0, Math.min(1, ((T.x - p.x) * vx + (T.y - p.y) * vy) / (vx * vx + vy * vy)));
+      return Math.hypot(p.x + u * vx - T.x, p.y + u * vy - T.y) > T.r * 1.15;
+    }
+    function angle(o, p, q) {           // the angle at vertex o
+      var a = len(o, p), b = len(o, q), c = len(p, q);
+      return Math.acos(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b))));
+    }
+    // every suitable triangle, the ones at a middling distance from the leftover first
+    var all = [];
+    for (var i = 0; i < n; i++) {
+      for (var j = i + 1; j < n; j++) {
+        if (!free(i, j)) continue;
+        for (var k = j + 1; k < n; k++) {
+          if (!free(i, k) || !free(j, k)) continue;
+          if (Math.min(angle(i, j, k), angle(j, i, k), angle(k, i, j)) < 0.7) continue;
+          var gx = (ring[i].x + ring[j].x + ring[k].x) / 3 - CORE.x, gy = (ring[i].y + ring[j].y + ring[k].y) / 3 - CORE.y;
+          all.push({ v: [i, j, k], dir: Math.atan2(gy, gx), score: Math.abs(Math.hypot(gx, gy) - 0.62) });
+        }
+      }
+    }
+    all.sort(function (p, q) { return p.score - q.score; });
+    // take COUNT of them in directions as far apart as can be had
+    for (var apart = 2 * Math.PI / COUNT - 0.3; out.length < COUNT && apart > 0.5; apart -= 0.2) {
+      out = []; taken = {};
+      all.forEach(function (c) {
+        if (out.length >= COUNT || c.v.some(function (v) { return taken[v]; })) return;
+        var ok = out.every(function (o) {
+          var d = c.dir - o.dir;
+          return Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) >= apart;
+        });
+        if (ok) { c.v.forEach(function (v) { taken[v] = true; }); out.push(c); }
+      });
+    }
+    out.sort(function (p, q) { return p.dir - q.dir; });       // in order around the leftover
+    return out.map(function (c) { return c.v; });
+  })();
+
+  function duration(kind, k) {
+    if (kind === 'mark') return 1700;
+    if (kind === 'aside') return 1300;
+    if (kind === 'pick') return 1100;
+    if (kind === 'cover') return Math.max(1800, Math.min(4600, tris[mod(k)].length * 34));
+    if (kind === 'settle') return 1700;
+    return 2600;
+  }
+  function after(c) {                   // the phase that follows phase c
+    if (c.kind === 'mark') return { k: 0, kind: 'aside' };
+    if (c.kind === 'aside' || c.kind === 'pick') return { k: c.k, kind: 'cover' };
+    if (c.kind === 'cover') return { k: c.k, kind: 'settle' };
+    if (c.kind === 'settle') return { k: c.k, kind: 'zoom' };
+    return { k: c.k + 1, kind: 'pick' };
+  }
+  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // Everything the renderer needs while the rounds are running.
+  //   prog, fade : how much of this round's packing is taken, and how far it has faded
+  //   veil       : how hazy the inside of the smaller set is
+  //   emph       : how strongly the edges of this round are brought out
+  //   appear     : the level four steps in comes into view during the zoom
+  //   out        : the current level leaves the picture during the zoom
+  //   absShow, absRed, absMs : the absorbers (how visible, how red, time since they started absorbing)
+  //   dot        : the mark on the leftover
+  function loopState(k, kind, t) {
+    t = clamp(t, 0, 1);
+    var s = { loop: true, base: k, z: k, prog: 0, fade: 0, veil: 1, emph: 1, appear: 0, out: 1, dim: 0,
+              coverDur: duration('cover', k), absShow: 0, absRed: 0, absMs: -1, dot: 0 };
+    if (kind === 'mark') { s.absShow = 1; s.absRed = ease(clamp(t / 0.65, 0, 1)); s.dot = 1; }
+    else if (kind === 'aside') { s.absShow = s.dot = 1 - ease(t); s.absRed = 1; }
+    else if (kind === 'pick') { s.veil = s.emph = ease(t); }
+    else if (kind === 'cover') { s.prog = t; }
+    else if (kind === 'settle') { s.prog = 1; s.fade = ease(t); }
+    else {
+      var e = ease(t);
+      s.prog = 1; s.fade = 1; s.z = k + e; s.veil = 1 - e; s.appear = e; s.dim = t;
+      s.out = 1 - ease(clamp((t - 0.4) / 0.6, 0, 1));
+    }
+    return s;
+  }
+  // what the running state says about level j; every set that is in view has its circle
+  function loopInfo(S, j) {
+    var b = S.base, o = { pres: 0, prog: 0, fade: 0, veil: 0, emph: 0, circle: 0, tint: 0, hot: 0 };
+    if (j === b) { o.pres = S.out; o.prog = S.prog; o.fade = S.fade; o.emph = S.emph; o.circle = 1; }
+    else if (j === b + 1) { o.pres = 1; o.veil = S.veil; o.circle = 1; o.tint = 1 - S.dim; }
+    else if (j === b + 2 || j === b + 3) { o.pres = 1; o.circle = 1; o.tint = 1; }
+    else if (j === b + 4) { o.pres = S.appear; o.circle = 1; o.tint = 1; }
+    return o;
+  }
+
+  var cur = { k: 0, kind: 'mark', t: 0 };   // round, phase and progress within the phase
+  var mode = 'idle';                    // idle | run | look
+  var playing = false, speed = 1;
+  var look = null;                      // parameters of the look-back animation
+  var st;                               // the state being drawn
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function setLoopState() { st = loopState(cur.k, cur.kind, cur.t); }
+  function advance() { var n = after(cur); cur = { k: n.k, kind: n.kind, t: 0 }; }
+
+  /* ------------------------------------------------------------------
+     3. Drawing. All positions are computed relative to the set that fills
+        the view, so the picture stays exact however long the zoom runs.
+     ------------------------------------------------------------------ */
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, PAD = 34, col = {}, fontFamily = 'Helvetica, Arial, sans-serif';
+  var ORIGIN = { x: 0, y: 0 };
+
+  function hex(name) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (v.length === 4) v = '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+    return [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16)];
+  }
+  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + clamp(a, 0, 1).toFixed(3) + ')'; }
+  function readColours() {
+    ['paper', 'ink', 'muted', 'rule', 'link', 'flash', 'left', 'packed'].forEach(function (n) { col[n] = hex('--' + n); });
+    fontFamily = getComputedStyle(document.body).fontFamily || fontFamily;
+  }
+
+  function resize() {
+    var rect = canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    W = Math.max(120, rect.width); H = Math.max(120, rect.height);
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    PAD = W < 420 ? 24 : 34;
+    draw();
+  }
+
+  // what the state says about level j, also while looking back
+  function info(j) {
+    if (st.loop) return loopInfo(st, j);
+    var o = loopInfo(st.from, j), m = st.settle, packed = j < st.look;
+    return {
+      pres: o.pres + (1 - o.pres) * m,
+      prog: packed ? (st.finish && j === st.finish.i ? st.finishProg : 1) : 0,
+      fade: packed ? (j < st.from.base ? 1 : o.fade + (1 - o.fade) * m) : 0,
+      veil: o.veil * (1 - m), emph: o.emph * (1 - m),
+      circle: o.circle + (1 - o.circle) * m, tint: o.tint * (1 - m),
+      hot: j >= st.look ? st.lookAmt : 0
+    };
+  }
+
+  function draw() {
+    if (!st || !W) return;
+    var b = st.base, f = st.z - b;                         // the view lies between set b and set b + 1
+    var V = Math.min(W, H) / 2 - PAD;                      // radius of a set that fills the view
+    var s = V * Math.pow(1 / RATIO, f);
+    // zooming from one set to the next is a zoom about a fixed point of the screen
+    var q = (V / s - RATIO) / (1 - RATIO);
+    var cb = child[mod(b)], cob = Math.cos(b * TWIST), sib = Math.sin(b * TWIST);
+    var camX = (cob * cb.x - sib * cb.y) * (1 - q), camY = (sib * cb.x + cob * cb.y) * (1 - q);
+    var j, k, e, e2, c, rho, alpha, lw;
+
+    // which levels are drawn
+    var lo = b, hi = b + 4;
+    if (!st.loop) {
+      lo = Math.max(0, b - 1); hi = b + 1;
+      while (hi < b + 7 && s * Math.pow(RATIO, hi + 1 - b) >= 5) hi++;
+    }
+
+    // where each of those sets sits: its centre and size relative to set b, and how far it is turned
+    var F = {}, I = {}, g;
+    function frameAt(lv, ox, oy, sc) {
+      return { ox: ox, oy: oy, sc: sc, co: Math.cos(lv * TWIST), si: Math.sin(lv * TWIST) };
+    }
+    F[b] = frameAt(b, 0, 0, 1);
+    for (j = b + 1; j <= hi + 1; j++) {
+      c = child[mod(j - 1)]; g = F[j - 1];
+      F[j] = frameAt(j, g.ox + g.sc * (g.co * c.x - g.si * c.y), g.oy + g.sc * (g.si * c.x + g.co * c.y), g.sc * RATIO);
+    }
+    for (j = b - 1; j >= lo; j--) {
+      c = child[mod(j)];
+      g = frameAt(j, 0, 0, F[j + 1].sc / RATIO);
+      g.ox = F[j + 1].ox - g.sc * (g.co * c.x - g.si * c.y);
+      g.oy = F[j + 1].oy - g.sc * (g.si * c.x + g.co * c.y);
+      F[j] = g;
+    }
+    for (j = lo; j <= hi; j++) I[j] = info(j);
+    I[hi + 1] = { pres: 0 };
+
+    function SX(lv, p) { var fr = F[lv]; return W / 2 + (fr.ox + fr.sc * (fr.co * p.x - fr.si * p.y) - camX) * s; }
+    function SY(lv, p) { var fr = F[lv]; return H / 2 + (fr.oy + fr.sc * (fr.si * p.x + fr.co * p.y) - camY) * s; }
+    var coords = {};
+    function coordsOf(lv) {              // screen corners of the triangles of round lv
+      if (coords[lv]) return coords[lv];
+      var here = place(lv), further = place(lv + 1);
+      coords[lv] = tris[mod(lv)].map(function (t) {
+        var a = [];
+        for (var n = 0; n < 3; n++) {
+          var p = t.v[n].d ? further[t.v[n].i] : here[t.v[n].i];
+          a.push(SX(lv + t.v[n].d, p), SY(lv + t.v[n].d, p));
+        }
+        return a;
+      });
+      return coords[lv];
+    }
+    function triPath(a) { ctx.moveTo(a[0], a[1]); ctx.lineTo(a[2], a[3]); ctx.lineTo(a[4], a[5]); ctx.closePath(); }
+    function sidePath(a, n) { var n2 = (n + 1) % 3; ctx.moveTo(a[2 * n], a[2 * n + 1]); ctx.lineTo(a[2 * n2], a[2 * n2 + 1]); }
+
+    ctx.fillStyle = rgba(col.paper, 1);
+    ctx.fillRect(0, 0, W, H);
+    ctx.lineJoin = 'round';
+
+    // looking back: the set that holds the leftover is tinted
+    var looking = !st.loop && st.lookAmt > 0;
+    if (looking && st.look >= lo && st.look <= hi + 1) {
+      ctx.beginPath();
+      ctx.arc(SX(st.look, ORIGIN), SY(st.look, ORIGIN), F[st.look].sc * s, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(col.left, 0.10 * st.lookAmt);
+      ctx.fill();
+    }
+
+    // level by level, from the innermost one outwards
+    for (j = hi; j >= lo; j--) {
+      var inf = I[j], T = tris[mod(j)], C = coordsOf(j), n = T.length;
+      rho = F[j].sc * s;
+      alpha = clamp((rho - 5) / 60, 0.25, 1);
+      lw = clamp(rho / 160, 0.5, 1.1);
+
+      // edges of the round before that lie inside this set
+      if (j > lo && inf.pres > 0) {
+        var Tp = tris[mod(j - 1)], Cp = coordsOf(j - 1), Ip = I[j - 1];
+        ctx.beginPath();
+        for (k = clamp(Math.floor(Ip.prog * Tp.length + 1e-9), 0, Tp.length); k < Tp.length; k++) {
+          if (Tp[k].inside >= 0) sidePath(Cp[k], Tp[k].inside);
+        }
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = Ip.hot > 0 ? rgba(col.left, (0.62 + 0.3 * Ip.hot) * alpha * inf.pres)
+                                     : rgba(col.ink, 0.62 * alpha * inf.pres);
+        ctx.stroke();
+      }
+
+      // the triangles of this round
+      var done = clamp(Math.floor(inf.prog * n + 1e-9), 0, n);   // triangles 0 … done-1 are taken
+      var both = Math.min(inf.pres, I[j + 1].pres);
+      ctx.lineWidth = lw;
+      if (done > 0 && both > 0) {
+        ctx.beginPath();
+        for (k = 0; k < done; k++) triPath(C[k]);
+        ctx.fillStyle = rgba(col.packed, (0.32 - 0.14 * inf.fade) * alpha * both);
+        ctx.fill();
+        ctx.strokeStyle = rgba(col.packed, (0.8 - 0.35 * inf.fade) * alpha * both);
+        ctx.stroke();
+      }
+      if (inf.prog > 0 && inf.prog < 1) {                    // freshly taken triangles glow briefly
+        for (k = done - 1; k >= 0; k--) {
+          var age = (inf.prog - (k + 1) / n) * st.coverDur;
+          if (age > FLASH) break;
+          var glow = 1 - clamp(age / FLASH, 0, 1);
+          ctx.beginPath(); triPath(C[k]);
+          ctx.fillStyle = rgba(col.flash, 0.75 * glow);
+          ctx.fill();
+          ctx.strokeStyle = rgba(col.flash, glow);
+          ctx.stroke();
+        }
+      }
+      if (done < n) {                                        // uncovered edges, except those inside the next set
+        for (e = 0; e < 2; e++) {
+          var vis = e === 0 ? inf.pres : both;
+          if (vis <= 0) continue;
+          ctx.beginPath();
+          for (k = done; k < n; k++) {
+            for (e2 = 0; e2 < 3; e2++) if (T[k].side[e2] === e) sidePath(C[k], e2);
+          }
+          ctx.lineWidth = lw * (1 + 0.3 * inf.emph);
+          ctx.strokeStyle = inf.hot > 0 ? rgba(col.left, (0.62 + 0.3 * inf.hot) * alpha * vis)
+                                        : rgba(col.ink, (0.62 + 0.26 * inf.emph) * alpha * vis);
+          ctx.stroke();
+        }
+      }
+
+      // vertices
+      if (inf.pres > 0) {
+        var rad = clamp(rho / 105, clamp(rho / 50, 0.4, 0.8), 2.4), ring = place(j);
+        ctx.fillStyle = rgba(col.ink, (0.92 - 0.52 * (inf.prog >= 1 ? inf.fade : 0)) * inf.pres);
+        ctx.beginPath();
+        for (k = 0; k < ring.length; k++) {
+          var vx = SX(j, ring[k]), vy = SY(j, ring[k]);
+          if (vx < -4 || vy < -4 || vx > W + 4 || vy > H + 4) continue;
+          ctx.moveTo(vx + rad, vy); ctx.arc(vx, vy, rad, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
+      // everything inside this set so far is hazy until the view zooms in
+      if (inf.veil > 0) {
+        ctx.beginPath();
+        ctx.arc(SX(j, ORIGIN), SY(j, ORIGIN), rho, 0, Math.PI * 2);
+        ctx.fillStyle = rgba(col.paper, 0.76 * inf.veil);
+        ctx.fill();
+      }
+
+      // the circle of this set
+      if (inf.circle > 0 && inf.pres > 0 && rho >= 5) {
+        ctx.beginPath();
+        ctx.arc(SX(j, ORIGIN), SY(j, ORIGIN), rho, 0, Math.PI * 2);
+        ctx.lineWidth = clamp(rho / 40, 0.8, 2.4);
+        if (looking && st.look === j) {
+          ctx.strokeStyle = rgba(col.left, 0.4 + 0.6 * st.lookAmt); ctx.stroke();
+        } else {
+          if (inf.tint < 1) { ctx.strokeStyle = rgba(col.muted, 0.85 * (1 - inf.tint) * inf.pres); ctx.stroke(); }
+          if (inf.tint > 0) { ctx.strokeStyle = rgba(col.link, inf.tint * inf.pres); ctx.stroke(); }
+        }
+      }
+    }
+
+    // looking back: whatever is too small to see is one dot
+    if (!st.loop && F[hi + 1].sc * s < 5) {
+      var open = looking && hi + 1 >= st.look && st.dot > 0;      // still uncovered?
+      ctx.beginPath();
+      ctx.arc(SX(hi + 1, ORIGIN), SY(hi + 1, ORIGIN), Math.max(1.6, F[hi + 1].sc * s), 0, Math.PI * 2);
+      ctx.fillStyle = rgba(open ? col.left : looking ? col.packed : col.ink, 0.9);
+      ctx.fill();
+    }
+
+    // the absorbers. The vertices x and y are inside the leftover, so the edge xy cannot be
+    // seen and the edges from x and from y to the same vertex would look like one line.
+    // Each such pair is therefore drawn as two curved sides.
+    var core = coreFrom(b), mx = W / 2 + (core.x - camX) * s, my = H / 2 + (core.y - camY) * s;
+    if (F[0] && (st.absShow > 0 || st.absMs >= 0)) {
+      var ring0 = place(0);
+      for (k = 0; k < ABSORBERS.length; k++) {
+        ctx.beginPath();
+        for (e = 0; e < 3; e++) {                              // the triangle abc
+          var tx0 = SX(0, ring0[ABSORBERS[k][e]]), ty0 = SY(0, ring0[ABSORBERS[k][e]]);
+          if (e === 0) ctx.moveTo(tx0, ty0); else ctx.lineTo(tx0, ty0);
+        }
+        ctx.closePath();
+        for (e = 0; e < 3; e++) {                              // xa and ya, xb and yb, xc and yc
+          var ax = SX(0, ring0[ABSORBERS[k][e]]), ay = SY(0, ring0[ABSORBERS[k][e]]);
+          var len = Math.hypot(mx - ax, my - ay) || 1, bow = Math.max(8, 0.11 * len);
+          var nx = -(my - ay) / len * bow, ny = (mx - ax) / len * bow, hx = (ax + mx) / 2, hy = (ay + my) / 2;
+          ctx.moveTo(ax, ay);
+          ctx.quadraticCurveTo(hx + nx, hy + ny, mx, my);
+          ctx.quadraticCurveTo(hx - nx, hy - ny, ax, ay);
+          ctx.closePath();
+        }
+        var since = st.absMs >= 0 ? st.absMs - (k + 1) * ABS_STEP : -1;
+        if (since >= 0) {                                    // taken, like the triangles of the cover down
+          ctx.lineWidth = 1.1;
+          ctx.fillStyle = rgba(col.packed, 0.3); ctx.fill();
+          ctx.strokeStyle = rgba(col.packed, 0.8); ctx.stroke();
+          if (since < FLASH) {
+            var lit = 1 - since / FLASH;
+            ctx.fillStyle = rgba(col.flash, 0.75 * lit); ctx.fill();
+            ctx.lineWidth = 1.1 + 1.6 * lit;
+            ctx.strokeStyle = rgba(col.flash, lit); ctx.stroke();
+          }
+        } else if (st.absShow > 0) {                         // part of the graph at first, then reserved: red and thicker
+          var red = st.absRed, shown = st.absShow;
+          if (red > 0) { ctx.fillStyle = rgba(col.left, 0.14 * red * shown); ctx.fill(); }
+          ctx.lineWidth = 1.2 + 1.5 * red;
+          if (red < 1) { ctx.strokeStyle = rgba(col.ink, 0.85 * (1 - red) * shown); ctx.stroke(); }
+          if (red > 0) { ctx.strokeStyle = rgba(col.left, red * shown); ctx.stroke(); }
+        }
+      }
+    }
+
+    // the leftover: once its set is too small to make out, it is one dot
+    var dot = 0;
+    if (st.loop) dot = b === 0 ? st.dot : 0;
+    else if (looking && st.look >= b && s * Math.pow(RATIO, st.look - b) < 6) dot = st.lookAmt * st.dot;
+    if (dot > 0) {
+      ctx.beginPath(); ctx.arc(mx, my, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(col.left, dot); ctx.fill();
+      ctx.font = '13px ' + fontFamily; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      var text = 'leftover', tw = ctx.measureText(text).width;
+      var tx = mx + 13 + tw > W - 6 ? mx - 13 - tw : mx + 13;
+      ctx.lineWidth = 3.5; ctx.strokeStyle = rgba(col.paper, 0.9 * dot); ctx.strokeText(text, tx, my);
+      ctx.fillStyle = rgba(col.left, dot); ctx.fillText(text, tx, my);
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     4. The caption and the buttons
+     ------------------------------------------------------------------ */
+
+  var el = {
+    caption: document.getElementById('caption'), hint: document.getElementById('hint'),
+    play: document.getElementById('play'), step: document.getElementById('step'),
+    stop: document.getElementById('stop'), reset: document.getElementById('reset'),
+    speed: document.getElementById('speed')
+  };
+
+  var lastCaption = '';
+  function captionText() {
+    if (mode === 'look') {
+      if (look.n === 0) {
+        return 'Stopped before the first round. Nothing has been covered, so the leftover is the whole graph, ' +
+               'and no absorber could be prepared for that. This is why we cover down first.';
+      }
+      if (look.ms < look.tZoom) {
+        return 'Stopped after ' + look.n + (look.n === 1 ? ' round' : ' rounds') + '. Every uncovered edge lies in ' +
+               'the set marked in red, which shrinks to a dot as the view pulls back.';
+      }
+      if (look.ms < look.tHold) {
+        return 'Back in the first set. All that is left uncovered is the red dot, and the absorbers that were ' +
+               'set aside in step zero return.';
+      }
+      return 'The absorbers take in the leftover, and nothing is left uncovered.';
+    }
+    if (cur.kind === 'mark') {
+      if (mode === 'idle') {
+        return 'Before the first round. The red dot marks where the leftover will end up: a set so small that it ' +
+               'is drawn as a dot. ' + (['No', 'One', 'Two', 'Three', 'Four', 'Five'][ABSORBERS.length] || 'Several') +
+               (ABSORBERS.length === 1 ? ' absorber reaches' : ' absorbers reach') + ' into it from outside the smaller set. Press ' +
+               (reduceMotion ? 'Next step' : 'Play') + '.';
+      }
+      return 'Step zero: the absorbers are reserved. Each has five vertices, two in the leftover and three ' +
+             'outside the smaller set, with every pair joined by an edge.';
+    }
+    if (cur.kind === 'aside') return 'The absorbers are set aside. They take no part in the rounds that follow, and they come back at the very end.';
+    if (cur.kind === 'pick') return 'The inner circle marks a smaller set. The edges that are not entirely inside it are the ones to cover in this round.';
+    if (cur.kind === 'cover') return 'Cover down: edge-disjoint triangles take every edge that is not inside the smaller set.';
+    if (cur.kind === 'settle') return 'Every uncovered edge now lies inside the smaller set. A few of its edges were used; most are untouched.';
+    return 'Zoom into the smaller set, where the edges come into focus.';
+  }
+
+  function refresh() {
+    var c = captionText();
+    if (c !== lastCaption) { el.caption.textContent = c; lastCaption = c; }
+    el.caption.setAttribute('aria-live', playing ? 'off' : 'polite');
+    var over = mode === 'look' && look.ms >= look.total;      // the look back has run to its end
+    var locked = mode !== 'look' && cur.k < MIN_ROUNDS;       // too early to stop
+    el.play.textContent = reduceMotion ? 'Next step' : playing ? 'Pause' : 'Play';
+    el.play.disabled = mode === 'look' && (!reduceMotion || over);
+    el.step.disabled = over;
+    el.step.hidden = reduceMotion;
+    el.stop.disabled = mode === 'look' || locked;
+    var hint = locked ? 'Stop and absorb unlocks after five rounds: ' + (MIN_ROUNDS - cur.k) + ' to go.' : '';
+    if (el.hint.textContent !== hint) el.hint.textContent = hint;
+    draw();
+  }
+
+  /* ------------------------------------------------------------------
+     5. Playback
+     ------------------------------------------------------------------ */
+
+  var raf = 0, lastTime = 0;
+  function frame(now) {
+    raf = 0;
+    // time since the previous frame; the first frame of a run counts as no time at all
+    var dt = lastTime ? clamp(now - lastTime, 0, 80) * speed : 0;
+    lastTime = now;
+    if (mode === 'look') {
+      look.ms = Math.min(look.total, look.ms + dt);
+      setLookState();
+      refresh();
+      if (look.ms < look.total) schedule();
+      return;
+    }
+    if (!playing) return;
+    cur.t += dt / duration(cur.kind, cur.k);
+    if (cur.t >= 1) advance();
+    setLoopState();
+    refresh();
+    schedule();
+  }
+  function schedule(fresh) {            // fresh: a new run starts, as opposed to the next frame of one
+    if (raf) return;
+    if (fresh) lastTime = 0;
+    raf = requestAnimationFrame(frame);
+  }
+
+  // Next step: show the finished state of the current phase, or of the next one.
+  function nextStep() {
+    if (mode === 'look') {              // while looking back: on to the next stage
+      var stops = [look.tZoom, look.tHold - 1, look.total];   // looked back / absorber returned / absorbed
+      for (var n = 0; n < stops.length; n++) if (stops[n] > look.ms + 1) { look.ms = Math.min(stops[n], look.total); break; }
+      setLookState();
+      refresh();
+      return;
+    }
+    mode = 'run'; playing = false;
+    if (cur.t < 1) cur.t = 1;
+    else { advance(); cur.t = 1; }
+    setLoopState();
+    refresh();
+  }
+
+  function togglePlay() {
+    if (reduceMotion) { nextStep(); return; }
+    if (mode === 'look') return;
+    playing = !playing;
+    if (playing) { mode = 'run'; schedule(true); }
+    refresh();
+  }
+
+  // Stop: finish the round in progress, travel back out to the first set, bring the
+  // absorber back and let it take in the leftover.
+  function stopAndAbsorb(force) {
+    if (mode === 'look' || (force !== true && cur.k < MIN_ROUNDS)) return;
+    playing = false;
+    var from = st, n = from.base, finish = null;
+    if (from.prog > 0) {                      // a round is under way or done: the leftover is one set further in
+      n = from.base + 1;
+      if (from.prog < 1) finish = { i: from.base, prog: from.prog, dur: from.coverDur };
+    }
+    var head = finish ? 700 : 0, tZoom = head + 1100 + 650 * Math.min(from.z, 9);
+    look = { n: n, from: from, zFrom: from.z, finish: finish, ms: 0, head: head,
+             tZoom: tZoom,                    // the view is back in the first set
+             tShow: tZoom + 500,              // the absorber starts to come back
+             tHold: tZoom + 2100,             // …is fully there, and starts to absorb
+             total: n > 0 ? tZoom + 2100 + ABSORBERS.length * ABS_STEP + FLASH + 300 : tZoom };
+    mode = 'look';
+    if (reduceMotion) look.ms = Math.min(look.tHold - 1, look.total);
+    setLookState();
+    refresh();
+    if (!reduceMotion && look.ms < look.total) schedule(true);   // with reduced motion, Next step moves on
+  }
+  function setLookState() {
+    var ms = look.ms;
+    var a = look.head > 0 ? clamp(ms / look.head, 0, 1) : 1;              // first finish the round…
+    var b = clamp((ms - look.head) / (look.tZoom - look.head), 0, 1);     // …then zoom back out
+    var z = look.zFrom * (1 - ease(b));
+    var absMs = look.n > 0 && ms >= look.tHold ? ms - look.tHold : -1;    // …and at the end, absorb
+    st = {
+      loop: false, from: look.from, look: look.n, z: z, base: Math.max(0, Math.floor(z)),
+      settle: clamp(3 * ms / look.tZoom, 0, 1),
+      lookAmt: ms >= look.tZoom ? 1 : Math.max(a * 0.5, ease(b)),
+      finish: look.finish, coverDur: look.finish ? look.finish.dur : 0,
+      finishProg: look.finish ? look.finish.prog + (1 - look.finish.prog) * a : 1,
+      absShow: look.n > 0 ? ease(clamp((ms - look.tShow) / 1000, 0, 1)) : 0, absRed: 1, absMs: absMs,
+      dot: absMs < 0 ? 1 : 1 - clamp(absMs / (ABSORBERS.length * ABS_STEP), 0, 1)
+    };
+  }
+
+  function startOver() {
+    playing = false; mode = 'idle'; look = null;
+    cur = { k: 0, kind: 'mark', t: 0 };
+    setLoopState();
+    refresh();
+  }
+
+  el.play.addEventListener('click', togglePlay);
+  el.step.addEventListener('click', nextStep);
+  el.stop.addEventListener('click', function () { stopAndAbsorb(); });
+  el.reset.addEventListener('click', startOver);
+  el.speed.addEventListener('change', function () { speed = parseFloat(el.speed.value) || 1; });
+
+  var scheme = window.matchMedia('(prefers-color-scheme: dark)');
+  var onScheme = function () { readColours(); draw(); };
+  if (scheme.addEventListener) scheme.addEventListener('change', onScheme); else if (scheme.addListener) scheme.addListener(onScheme);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas); else window.addEventListener('resize', resize);
+
+  readColours();
+  setLoopState();
+  resize();
+  refresh();
+
+  // for talks and for testing: jump to any moment of the script
+  window.coverDown = {
+    model: model, absorbers: ABSORBERS, twist: TWIST, layout: place,
+    // phase is one of 'mark', 'aside' (step zero) or 'pick', 'cover', 'settle', 'zoom'
+    seek: function (round, phase, t) {
+      playing = false; look = null; mode = 'run';
+      cur = { k: Math.max(0, Math.floor(round)), kind: phase, t: clamp(t, 0, 1) };
+      setLoopState(); refresh();
+    },
+    stop: function () { stopAndAbsorb(true); }, startOver: startOver,
+    // choose the random pushes (seed) and their size (wobble), e.g. coverDown.set({ wobble: 0 })
+    set: function (o) {
+      if (o && o.seed !== undefined) sessionSeed = o.seed >>> 0;
+      if (o && o.wobble !== undefined) WOBBLE = Math.max(0, +o.wobble || 0);
+      placed = {}; placedCount = 0; draw();
+    }
+  };
+})();
+</script>
+</body>
+</html>
